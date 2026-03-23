@@ -1,6 +1,6 @@
 """
-IBKR Global Non-US Rotation Strategy.
-Quarterly momentum rotation across 13 non-US/non-tech ETFs + canary emergency.
+IBKR Global Non-Tech Sector Rotation Strategy.
+Quarterly momentum rotation across 19 non-tech ETFs + daily canary emergency.
 Runs on Cloud Run; connects to IB Gateway on GCE via ib_insync, alerts via Telegram.
 """
 import os
@@ -63,8 +63,8 @@ def resolve_gce_instance_ip(instance_name, zone):
 def get_ib_host():
     """
     Resolve IB Gateway host.
-    - If IB_GATEWAY_ZONE is set: resolve instance name via Compute API (VPC/internal)
-    - If IB_GATEWAY_ZONE is not set: use IB_GATEWAY_HOST directly (external IP)
+    - If IB_GATEWAY_ZONE is set: resolve instance name via Compute API
+    - If IB_GATEWAY_ZONE is not set: use IB_GATEWAY_HOST directly
     """
     host = os.getenv("IB_GATEWAY_HOST")
     if not host:
@@ -109,7 +109,9 @@ LIMIT_BUY_PREMIUM = 1.005
 
 # Execution
 SELL_SETTLE_DELAY_SEC = 3
-ORDER_TIMEOUT_SEC = 10
+
+# IBKR pacing: delay between historical data requests
+HIST_DATA_PACING_SEC = 0.5
 
 SEPARATOR = "━━━━━━━━━━━━━━━━━━"
 
@@ -134,6 +136,10 @@ I18N = {
         "limit_buy":        "📈 [限价买入] {symbol}: {qty}股 @ ${price}",
         "submitted":        "已下发 (ID: {order_id})",
         "failed":           "失败: {reason}",
+        "order_filled":     "✅ 订单成交 | {symbol} {side} {qty}股 均价 ${price} (ID: {order_id})",
+        "order_partial":    "⚠️ 部分成交 | {symbol} {side} {executed}/{qty}股 均价 ${price} (ID: {order_id})",
+        "order_rejected":   "❌ 订单异常 | {symbol} {side} {qty}股 状态: {status} (ID: {order_id})",
+        "duplicate_skip":   "⏭️ 今日已执行, 跳过",
     },
     "en": {
         "rebalance_title":  "🔔 【Trade Execution Report】",
@@ -152,6 +158,10 @@ I18N = {
         "limit_buy":        "📈 [Limit buy] {symbol}: {qty} shares @ ${price}",
         "submitted":        "submitted (ID: {order_id})",
         "failed":           "failed: {reason}",
+        "order_filled":     "✅ Filled | {symbol} {side} {qty} shares avg ${price} (ID: {order_id})",
+        "order_partial":    "⚠️ Partial | {symbol} {side} {executed}/{qty} shares avg ${price} (ID: {order_id})",
+        "order_rejected":   "❌ Rejected | {symbol} {side} {qty} shares status: {status} (ID: {order_id})",
+        "duplicate_skip":   "⏭️ Already executed today, skipping",
     },
 }
 
@@ -174,6 +184,26 @@ def send_tg_message(message):
 
 
 # ---------------------------------------------------------------------------
+# Idempotency: prevent duplicate execution on scheduler retries (I2)
+# ---------------------------------------------------------------------------
+_last_execution_date = None
+
+
+def check_already_executed_today():
+    """Return True if strategy already ran today (prevents duplicate orders on retry)."""
+    global _last_execution_date
+    today = datetime.now(pytz.timezone('America/New_York')).date()
+    if _last_execution_date == today:
+        return True
+    return False
+
+
+def mark_executed_today():
+    global _last_execution_date
+    _last_execution_date = datetime.now(pytz.timezone('America/New_York')).date()
+
+
+# ---------------------------------------------------------------------------
 # IB Gateway connection
 # ---------------------------------------------------------------------------
 def connect_ib():
@@ -185,6 +215,7 @@ def connect_ib():
 def get_historical_close(ib, symbol, duration="2 Y", bar_size="1 day"):
     """Fetch daily close prices from IBKR for a US stock/ETF."""
     contract = Stock(symbol, 'SMART', 'USD')
+    ib.qualifyContracts(contract)  # Fix I4: qualify before requesting data
     bars = ib.reqHistoricalData(
         contract,
         endDateTime='',
@@ -240,9 +271,9 @@ def check_sma(closes, period=SMA_PERIOD):
 def compute_signals(ib, current_holdings):
     """
     Compute target weights.
-    Returns (weights_dict, signal_description, is_emergency).
+    Returns (weights_dict, signal_description, is_emergency, canary_str).
     """
-    # Fetch all price data
+    # Fetch all price data with pacing (Fix C3)
     all_tickers = list(set(RANKING_POOL + CANARY_ASSETS + [SAFE_HAVEN]))
     price_data = {}
     for ticker in all_tickers:
@@ -252,8 +283,9 @@ def compute_signals(ib, current_holdings):
                 price_data[ticker] = closes
         except Exception as e:
             print(f"Warning: failed to fetch {ticker}: {e}", flush=True)
+        time.sleep(HIST_DATA_PACING_SEC)  # Fix C3: IBKR pacing between requests
 
-    # --- Step 1: Monthly canary check ---
+    # --- Step 1: Daily canary check ---
     n_bad = 0
     canary_details = []
     for c in CANARY_ASSETS:
@@ -276,14 +308,12 @@ def compute_signals(ib, current_holdings):
         return {SAFE_HAVEN: 1.0}, signal_desc, True, canary_str
 
     # --- Step 2: Check if this is a quarterly rebalance day ---
-    # Rebalance on last trading day of rebalance months (Mar/Jun/Sep/Dec)
     tz_ny = pytz.timezone('America/New_York')
     now_ny = datetime.now(tz_ny)
     nyse = mcal.get_calendar('NYSE')
 
     is_rebal_day = False
     if now_ny.month in REBALANCE_MONTHS:
-        # Get all trading days this month
         month_start = now_ny.replace(day=1)
         month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
         schedule = nyse.schedule(start_date=month_start, end_date=month_end)
@@ -292,7 +322,6 @@ def compute_signals(ib, current_holdings):
             is_rebal_day = (now_ny.date() == last_trading_day)
 
     if not is_rebal_day:
-        # Not rebalance day: canary OK, keep current holdings
         signal_desc = t("daily_check")
         return None, signal_desc, False, canary_str
 
@@ -306,7 +335,6 @@ def compute_signals(ib, current_holdings):
             continue
         if not check_sma(price_data[ticker]):
             continue
-        # Hold bonus
         bonus = HOLD_BONUS if ticker in current_holdings else 0.0
         scores[ticker] = mom + bonus
 
@@ -345,7 +373,6 @@ def get_current_portfolio(ib):
                 'avg_cost': float(pos.avgCost),
             }
 
-    # Account values
     account_values = {}
     for av in ib.accountValues():
         if av.tag == 'NetLiquidation' and av.currency == 'USD':
@@ -356,20 +383,43 @@ def get_current_portfolio(ib):
     return positions, account_values
 
 
-def get_market_price(ib, symbol):
-    """Get current market price for a symbol."""
-    contract = Stock(symbol, 'SMART', 'USD')
-    ib.qualifyContracts(contract)
-    ticker = ib.reqMktData(contract, '', False, False)
-    time.sleep(2)
-    ib.cancelMktData(contract)
+def get_market_prices(ib, symbols):
+    """Fetch market prices for multiple symbols in one pass. Fix C4: no redundant calls."""
+    prices = {}
+    contracts = []
+    for symbol in symbols:
+        contract = Stock(symbol, 'SMART', 'USD')
+        ib.qualifyContracts(contract)
+        contracts.append((symbol, contract))
 
-    price = ticker.marketPrice()
-    if np.isnan(price) or price <= 0:
-        price = ticker.close
-    if np.isnan(price) or price <= 0:
-        return None
-    return float(price)
+    # Request all at once
+    tickers = {}
+    for symbol, contract in contracts:
+        tickers[symbol] = ib.reqMktData(contract, '', False, False)
+
+    time.sleep(3)  # Single wait for all
+
+    for symbol, contract in contracts:
+        ib.cancelMktData(contract)
+        tk = tickers[symbol]
+        price = tk.marketPrice()
+        if np.isnan(price) or price <= 0:
+            price = tk.close
+        if not np.isnan(price) and price > 0:
+            prices[symbol] = float(price)
+
+    return prices
+
+
+def check_order_submitted(trade, symbol, side_text, qty):
+    """Check if order was accepted. DAY orders auto-expire at close if not filled."""
+    order_id = trade.order.orderId
+    status = trade.orderStatus.status
+
+    if status in ['Submitted', 'PreSubmitted', 'Filled']:
+        return True, f"✅ {t('submitted', order_id=order_id)}"
+    else:
+        return False, f"❌ {t('failed', reason=status)}"
 
 
 def execute_rebalance(ib, target_weights, positions, account_values):
@@ -382,17 +432,12 @@ def execute_rebalance(ib, target_weights, positions, account_values):
     investable = equity - reserved
     threshold = equity * REBALANCE_THRESHOLD_RATIO
 
-    # Get all prices
+    # Get all prices in one batch (Fix C4)
     all_symbols = set(target_weights.keys()) | set(positions.keys())
-    # Filter to strategy symbols only
     strategy_symbols = set(RANKING_POOL + [SAFE_HAVEN])
     all_symbols = all_symbols & strategy_symbols
 
-    prices = {}
-    for symbol in all_symbols:
-        p = get_market_price(ib, symbol)
-        if p:
-            prices[symbol] = p
+    prices = get_market_prices(ib, all_symbols)
 
     # Current market values
     current_mv = {}
@@ -428,20 +473,16 @@ def execute_rebalance(ib, target_weights, positions, account_values):
             trade = ib.placeOrder(contract, order)
             time.sleep(1)
 
-            order_id = trade.order.orderId
-            log = t("market_sell", symbol=symbol, qty=qty)
-            if trade.orderStatus.status in ['Submitted', 'PreSubmitted', 'Filled']:
-                log += f" ✅ {t('submitted', order_id=order_id)}"
-                sell_executed = True
-            else:
-                log += f" ❌ {t('failed', reason=trade.orderStatus.status)}"
+            ok, status_msg = check_order_submitted(trade, symbol, "Sell", qty)
+            log = t("market_sell", symbol=symbol, qty=qty) + f" {status_msg}"
             trade_logs.append(log)
+            if ok:
+                sell_executed = True
 
     if sell_executed:
         time.sleep(SELL_SETTLE_DELAY_SEC)
 
     # --- Buy phase ---
-    # Re-fetch buying power after sells
     account_values_new = {}
     for av in ib.accountValues():
         if av.tag == 'AvailableFunds' and av.currency == 'USD':
@@ -464,18 +505,15 @@ def execute_rebalance(ib, target_weights, positions, account_values):
             contract = Stock(symbol, 'SMART', 'USD')
             ib.qualifyContracts(contract)
             order = LimitOrder('BUY', qty, limit_price)
-            order.tif = 'DAY'
+            order.tif = 'DAY'  # Auto-expire at close if not filled
             trade = ib.placeOrder(contract, order)
             time.sleep(1)
 
-            order_id = trade.order.orderId
-            log = t("limit_buy", symbol=symbol, qty=qty, price=f"{limit_price:.2f}")
-            if trade.orderStatus.status in ['Submitted', 'PreSubmitted', 'Filled']:
-                log += f" ✅ {t('submitted', order_id=order_id)}"
-                buying_power -= qty * limit_price
-            else:
-                log += f" ❌ {t('failed', reason=trade.orderStatus.status)}"
+            ok, status_msg = check_order_submitted(trade, symbol, "Buy", qty)
+            log = t("limit_buy", symbol=symbol, qty=qty, price=f"{limit_price:.2f}") + f" {status_msg}"
             trade_logs.append(log)
+            if ok:
+                buying_power -= qty * limit_price
 
     return trade_logs
 
@@ -484,8 +522,16 @@ def execute_rebalance(ib, target_weights, positions, account_values):
 # Main strategy runner
 # ---------------------------------------------------------------------------
 def run_strategy_core():
-    ib = connect_ib()
+    # Fix I2: Idempotency guard
+    if check_already_executed_today():
+        msg = t("duplicate_skip")
+        send_tg_message(msg)
+        return "OK - duplicate skipped"
+
+    ib = None  # Fix C5: safe disconnect
     try:
+        ib = connect_ib()
+
         # Get current state
         positions, account_values = get_current_portfolio(ib)
         equity = account_values.get('equity', 0)
@@ -496,12 +542,12 @@ def run_strategy_core():
         # Compute signals
         target_weights, signal_desc, is_emergency, canary_str = compute_signals(ib, current_holdings)
 
-        # Build dashboard
+        # Build dashboard using account values (no extra market data calls) Fix C4
         pos_lines = []
         for symbol in sorted(positions.keys()):
             qty = positions[symbol]['quantity']
-            price = get_market_price(ib, symbol)
-            mv = qty * price if price else 0
+            avg = positions[symbol]['avg_cost']
+            mv = qty * avg
             pos_lines.append(f"  {symbol}: {qty}股 ${mv:,.2f}")
         pos_str = '\n'.join(pos_lines) if pos_lines else "  (空仓)"
 
@@ -515,10 +561,10 @@ def run_strategy_core():
         )
 
         if target_weights is None:
-            # Non-rebalance month, canary OK → heartbeat only
             msg = f"{t('heartbeat_title')}\n{dashboard}\n{SEPARATOR}\n{t('no_trades')}"
             send_tg_message(msg)
             print(msg, flush=True)
+            mark_executed_today()
             return "OK - heartbeat"
 
         # Execute rebalance
@@ -537,10 +583,12 @@ def run_strategy_core():
 
         send_tg_message(msg)
         print(msg, flush=True)
+        mark_executed_today()
         return "OK - executed"
 
     finally:
-        ib.disconnect()
+        if ib is not None and ib.isConnected():  # Fix C5: safe disconnect
+            ib.disconnect()
 
 
 # ---------------------------------------------------------------------------

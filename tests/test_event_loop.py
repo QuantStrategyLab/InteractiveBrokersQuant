@@ -95,5 +95,8 @@ def test_connect_ib_prepares_event_loop_before_connect(strategy_module, monkeypa
     assert observed["loop"] is not None
 
 
-def test_default_ranking_pool_includes_qqq(strategy_module):
-    assert "QQQ" in strategy_module.RANKING_POOL
+def test_default_ranking_pool_uses_voo_xlk_smh(strategy_module):
+    assert "VOO" in strategy_module.RANKING_POOL
+    assert "XLK" in strategy_module.RANKING_POOL
+    assert "SMH" in strategy_module.RANKING_POOL
+    assert "QQQ" not in strategy_module.RANKING_POOL

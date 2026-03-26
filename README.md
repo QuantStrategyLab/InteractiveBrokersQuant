@@ -12,17 +12,19 @@
 <a id="english"></a>
 ## English
 
-Quarterly momentum rotation across 20 global ETFs (international markets, commodities, US sectors, and QQQ) with daily canary emergency check. Designed to stay more stable than high-beta tech strategies while still allowing major tech leadership to enter the rotation. Deployed on GCP Cloud Run, connecting to IB Gateway on GCE.
+Quarterly momentum rotation across 22 global ETFs (international markets, commodities, US sectors, US broad market, tech, and semiconductors) with daily canary emergency check. Designed to stay more stable than high-beta tech strategies while still allowing major tech leadership to enter the rotation. Deployed on GCP Cloud Run, connecting to IB Gateway on GCE.
 
 ### Strategy
 
-**Pool (20 ETFs + 1 safe haven):**
+**Pool (22 ETFs + 1 safe haven):**
 
 | Category | Tickers |
 |----------|---------|
 | Asia | EWY (Korea), EWT (Taiwan), INDA (India), FXI (China), EWJ (Japan) |
 | Europe | VGK |
-| US Growth / Tech | QQQ (Nasdaq 100) |
+| US Broad Market | VOO (S&P 500) |
+| US Tech | XLK (Technology Select Sector) |
+| Semiconductors | SMH (Semiconductor ETF) |
 | Commodities | GLD (Gold), SLV (Silver), USO (Oil), DBA (Agriculture) |
 | US Cyclical | XLE (Energy), XLF (Financials), ITA (Aerospace/Defense) |
 | US Defensive | XLP (Consumer Staples), XLU (Utilities), XLV (Healthcare), IHI (Medical Devices) |
@@ -38,12 +40,12 @@ Quarterly momentum rotation across 20 global ETFs (international markets, commod
 - **Rebalance**: Quarterly (last trading day of Mar, Jun, Sep, Dec)
 - **Canary emergency**: Daily check of SPY/EFA/EEM/AGG — if all 4 have negative momentum → 100% BIL immediately
 
-**Current default backtest (aligned window: 2012-02-03 to 2026-03-25, `QQQ` included):**
-- CAGR: 6.9% | Max Drawdown: 36.1%
-- Sharpe: 0.47
+**Current default backtest (aligned window: 2012-02-03 to 2026-03-25, `VOO + XLK + SMH` included):**
+- CAGR: 11.6% | Max Drawdown: 23.3%
+- Sharpe: 0.70
 - 2022: +3.1%
-- 2023+ CAGR: 19.9% | Max Drawdown: 22.0%
-- Legacy non-tech baseline is still available in the research script for comparison
+- 2023+ CAGR: 29.2% | Max Drawdown: 20.9%
+- Legacy non-tech baseline and prior `QQQ` default remain available in the research script for comparison
 
 ### Architecture
 
@@ -120,17 +122,19 @@ Instance name is resolved to internal IP via Compute API at startup. Service acc
 <a id="中文"></a>
 ## 中文
 
-基于 IBKR 的全球 ETF 季度轮动策略（国际市场、商品、美股行业和 `QQQ`），含每日金丝雀应急机制。定位上比 `TQQQ`、`SOXL` 这类高弹性科技策略更稳健，但不再把科技完全排除在外。部署在 GCP Cloud Run，连接 GCE 上的 IB Gateway。
+基于 IBKR 的全球 ETF 季度轮动策略（国际市场、商品、美股行业、美股宽基、科技和半导体），含每日金丝雀应急机制。定位上比 `TQQQ`、`SOXL` 这类高弹性科技策略更稳健，但不再把科技完全排除在外。部署在 GCP Cloud Run，连接 GCE 上的 IB Gateway。
 
 ### 策略
 
-**选池 (20只 + 1只避险):**
+**选池 (22只 + 1只避险):**
 
 | 类别 | 代码 |
 |------|------|
 | 亚洲 | EWY(韩国), EWT(台湾), INDA(印度), FXI(中国), EWJ(日本) |
 | 欧洲 | VGK |
-| 美股成长/科技 | QQQ(纳斯达克100) |
+| 美股宽基 | VOO(S&P 500) |
+| 美股科技 | XLK(科技板块) |
+| 半导体 | SMH(半导体 ETF) |
 | 商品 | GLD(黄金), SLV(白银), USO(石油), DBA(农产品) |
 | 美股周期 | XLE(能源), XLF(金融), ITA(国防航空) |
 | 美股防御 | XLP(必需消费), XLU(公用事业), XLV(医疗), IHI(医疗器械) |
@@ -146,12 +150,12 @@ Instance name is resolved to internal IP via Compute API at startup. Service acc
 - **调仓**: 季度（3/6/9/12月最后一个交易日）
 - **金丝雀应急**: 每日检查 SPY/EFA/EEM/AGG — 4个全部动量为负 → 立即 100% BIL
 
-**当前默认版本回测 (`QQQ` 已纳入，公共区间: 2012-02-03 到 2026-03-25):**
-- CAGR: 6.9% | 最大回撤: 36.1%
-- Sharpe: 0.47
+**当前默认版本回测 (`VOO + XLK + SMH` 已纳入，公共区间: 2012-02-03 到 2026-03-25):**
+- CAGR: 11.6% | 最大回撤: 23.3%
+- Sharpe: 0.70
 - 2022: +3.1%
-- 2023+ CAGR: 19.9% | 最大回撤: 22.0%
-- 如需对比旧版“非科技基线”，可以直接运行研究脚本
+- 2023+ CAGR: 29.2% | 最大回撤: 20.9%
+- 如需对比旧版“非科技基线”和之前的 `QQQ` 默认版，可以直接运行研究脚本
 
 ### 架构
 
@@ -189,7 +193,7 @@ IBKR 账户
 
 ### Research / 回测
 
-可以用独立脚本对比旧版非科技基线、当前默认策略和更激进的 `QQQ` 方案：
+可以用独立脚本对比旧版非科技基线、当前默认策略，以及 `QQQ` 和 `VOO/XLK/SMH` 的研究方案：
 
 ```bash
 python3 research/backtest_qqq_variants.py
@@ -198,7 +202,8 @@ python3 research/backtest_qqq_variants.py
 默认会比较：
 
 - 旧版非科技轮动
-- 当前默认策略：`QQQ` 加入轮动池参与 `Top 2`
-- 固定 `20% / 30% / 40%` 的 `QQQ` 核心仓位，其余仓位继续跑原策略
+- 当前默认策略：`VOO + XLK + SMH` 加入统一轮动池参与 `Top 2`
+- `QQQ` 默认版、`VOO` 替换版，以及逐步加入 `XLK / SMH` 的拆解对比
+- 固定 `20% / 30% / 40%` 的 `QQQ` 核心仓位参考方案
 
 脚本使用 `yfinance` 的复权收盘价，并自动把回测起点对齐到所有标的都有历史数据的最早公共日期。

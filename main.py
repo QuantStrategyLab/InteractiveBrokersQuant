@@ -1,6 +1,6 @@
 """
 IBKR Global ETF Rotation Strategy.
-Quarterly momentum rotation across 20 global ETFs + daily canary emergency.
+Quarterly momentum rotation across 22 global ETFs + daily canary emergency.
 Runs on Cloud Run; connects to IB Gateway on GCE via ib_insync, alerts via Telegram.
 """
 import asyncio
@@ -90,7 +90,7 @@ NOTIFY_LANG = os.getenv("NOTIFY_LANG", "en")
 # Strategy parameters
 RANKING_POOL = [
     'EWY', 'EWT', 'INDA', 'FXI', 'EWJ', 'VGK',  # International
-    'QQQ',                                          # US large-cap growth / tech
+    'VOO', 'XLK', 'SMH',                            # US broad market, tech, semis
     'GLD', 'SLV', 'USO', 'DBA',                    # Commodities
     'XLE', 'XLF', 'ITA',                           # US cyclical sectors
     'XLP', 'XLU', 'XLV', 'IHI',                   # US defensive sectors

@@ -95,6 +95,66 @@ def test_connect_ib_prepares_event_loop_before_connect(strategy_module, monkeypa
     assert observed["loop"] is not None
 
 
+def test_resolve_gce_instance_ip_prefers_internal_by_default(strategy_module, monkeypatch):
+    fake_instance = types.SimpleNamespace(
+        network_interfaces=[
+            types.SimpleNamespace(
+                access_configs=[types.SimpleNamespace(nat_i_p="35.211.181.174")],
+                network_i_p="10.0.0.8",
+            )
+        ]
+    )
+
+    class FakeInstancesClient:
+        def get(self, project, zone, instance):
+            assert project == "test-project"
+            assert zone == "us-central1-a"
+            assert instance == "ib-gateway"
+            return fake_instance
+
+    monkeypatch.setattr(
+        strategy_module,
+        "compute_v1",
+        types.SimpleNamespace(InstancesClient=FakeInstancesClient),
+    )
+    monkeypatch.setattr(strategy_module, "get_project_id", lambda: "test-project")
+    monkeypatch.delenv("IB_GATEWAY_IP_MODE", raising=False)
+
+    resolved = strategy_module.resolve_gce_instance_ip("ib-gateway", "us-central1-a")
+
+    assert resolved == "10.0.0.8"
+
+
+def test_resolve_gce_instance_ip_can_use_external_mode(strategy_module, monkeypatch):
+    fake_instance = types.SimpleNamespace(
+        network_interfaces=[
+            types.SimpleNamespace(
+                access_configs=[types.SimpleNamespace(nat_i_p="35.211.181.174")],
+                network_i_p="10.0.0.8",
+            )
+        ]
+    )
+
+    class FakeInstancesClient:
+        def get(self, project, zone, instance):
+            assert project == "test-project"
+            assert zone == "us-central1-a"
+            assert instance == "ib-gateway"
+            return fake_instance
+
+    monkeypatch.setattr(
+        strategy_module,
+        "compute_v1",
+        types.SimpleNamespace(InstancesClient=FakeInstancesClient),
+    )
+    monkeypatch.setattr(strategy_module, "get_project_id", lambda: "test-project")
+    monkeypatch.setenv("IB_GATEWAY_IP_MODE", "external")
+
+    resolved = strategy_module.resolve_gce_instance_ip("ib-gateway", "us-central1-a")
+
+    assert resolved == "35.211.181.174"
+
+
 def test_default_ranking_pool_uses_voo_xlk_smh(strategy_module):
     assert "VOO" in strategy_module.RANKING_POOL
     assert "XLK" in strategy_module.RANKING_POOL

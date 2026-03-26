@@ -37,25 +37,42 @@ def get_project_id():
         return os.getenv("GOOGLE_CLOUD_PROJECT")
 
 
+def get_ib_gateway_ip_mode():
+    mode = os.getenv("IB_GATEWAY_IP_MODE", "internal").strip().lower()
+    if mode in {"internal", "external"}:
+        return mode
+    print(f"Invalid IB_GATEWAY_IP_MODE={mode!r}, defaulting to internal", flush=True)
+    return "internal"
+
+
 def resolve_gce_instance_ip(instance_name, zone):
-    """Resolve GCE instance IP by name via Compute API. Tries external IP first, falls back to internal."""
+    """Resolve GCE instance IP by name via Compute API."""
     if not compute_v1:
         print(f"google-cloud-compute not installed, using {instance_name} as host directly", flush=True)
         return instance_name
     try:
+        ip_mode = get_ib_gateway_ip_mode()
         project = get_project_id()
         client = compute_v1.InstancesClient()
         instance = client.get(project=project, zone=zone, instance=instance_name)
+        internal_ip = None
+        external_ip = None
         for iface in instance.network_interfaces:
-            # Try external IP first (no VPC connector needed)
+            if iface.network_i_p:
+                internal_ip = iface.network_i_p
             for ac in iface.access_configs:
                 if ac.nat_i_p:
-                    print(f"Resolved {instance_name} → {ac.nat_i_p} (external)", flush=True)
-                    return ac.nat_i_p
-            # Fall back to internal IP (requires VPC connector)
-            if iface.network_i_p:
-                print(f"Resolved {instance_name} → {iface.network_i_p} (internal)", flush=True)
-                return iface.network_i_p
+                    external_ip = ac.nat_i_p
+
+        candidates = (
+            (("internal", internal_ip), ("external", external_ip))
+            if ip_mode == "internal"
+            else (("external", external_ip), ("internal", internal_ip))
+        )
+        for label, ip in candidates:
+            if ip:
+                print(f"Resolved {instance_name} → {ip} ({label}, mode={ip_mode})", flush=True)
+                return ip
     except Exception as e:
         print(f"GCE resolve failed for {instance_name}: {e}, using as hostname", flush=True)
     return instance_name

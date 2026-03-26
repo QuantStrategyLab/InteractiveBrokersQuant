@@ -55,6 +55,14 @@ BUILD_UP_COMPARISON_NAMES = [
     "voo_plus_xlk",
     "voo_plus_xlk_plus_smh",
 ]
+EXPERIMENT_COMPARISON_NAMES = [
+    "proposed_voo_xlk_smh",
+    "voo_bonus_0_5",
+    "voo_bonus_1_0",
+    "switch_threshold_1_0",
+    "hold_bonus_1_0",
+    "hold_bonus_3_0",
+]
 
 
 @dataclass(frozen=True)
@@ -62,6 +70,9 @@ class StrategyConfig:
     name: str
     ranking_pool: tuple[str, ...]
     fixed_qqq_weight: float = 0.0
+    hold_bonus_override: float | None = None
+    voo_bonus: float = 0.0
+    switch_threshold: float = 0.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,6 +97,11 @@ def build_configs(core_weights: Iterable[float]) -> list[StrategyConfig]:
         StrategyConfig("replace_qqq_with_voo", tuple(REPLACE_QQQ_WITH_VOO_POOL)),
         StrategyConfig("voo_plus_xlk", tuple(VOO_PLUS_XLK_POOL)),
         StrategyConfig("voo_plus_xlk_plus_smh", tuple(VOO_PLUS_XLK_PLUS_SMH_POOL)),
+        StrategyConfig("voo_bonus_0_5", tuple(VOO_PLUS_XLK_PLUS_SMH_POOL), voo_bonus=0.005),
+        StrategyConfig("voo_bonus_1_0", tuple(VOO_PLUS_XLK_PLUS_SMH_POOL), voo_bonus=0.01),
+        StrategyConfig("switch_threshold_1_0", tuple(VOO_PLUS_XLK_PLUS_SMH_POOL), switch_threshold=0.01),
+        StrategyConfig("hold_bonus_1_0", tuple(VOO_PLUS_XLK_PLUS_SMH_POOL), hold_bonus_override=0.01),
+        StrategyConfig("hold_bonus_3_0", tuple(VOO_PLUS_XLK_PLUS_SMH_POOL), hold_bonus_override=0.03),
     ]
     for weight in core_weights:
         if not 0 < weight < 1:
@@ -201,8 +217,29 @@ def compute_rotation_weights(
     sma_ok: pd.DataFrame,
     current_weights: dict[str, float],
 ) -> dict[str, float]:
-    scores: dict[str, float] = {}
     current_holdings = {symbol for symbol, weight in current_weights.items() if weight > 0 and symbol != SAFE_HAVEN}
+    scores = build_rotation_scores(date, config, momentum, sma_ok, current_holdings)
+    ranked_symbols = choose_ranked_symbols(scores, current_holdings, config.switch_threshold)
+
+    if not ranked_symbols:
+        return {SAFE_HAVEN: 1.0}
+
+    per_weight = 1.0 / TOP_N
+    weights = {symbol: per_weight for symbol in ranked_symbols}
+    if len(ranked_symbols) < TOP_N:
+        weights[SAFE_HAVEN] = per_weight * (TOP_N - len(ranked_symbols))
+    return weights
+
+
+def build_rotation_scores(
+    date: pd.Timestamp,
+    config: StrategyConfig,
+    momentum: pd.DataFrame,
+    sma_ok: pd.DataFrame,
+    current_holdings: set[str],
+) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    hold_bonus = HOLD_BONUS if config.hold_bonus_override is None else config.hold_bonus_override
 
     for symbol in config.ranking_pool:
         mom = momentum.at[date, symbol]
@@ -210,18 +247,55 @@ def compute_rotation_weights(
             continue
         if not bool(sma_ok.at[date, symbol]):
             continue
-        bonus = HOLD_BONUS if symbol in current_holdings else 0.0
+        bonus = hold_bonus if symbol in current_holdings else 0.0
+        if symbol == "VOO":
+            bonus += config.voo_bonus
         scores[symbol] = float(mom + bonus)
 
-    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:TOP_N]
-    if not ranked:
-        return {SAFE_HAVEN: 1.0}
+    return scores
 
-    per_weight = 1.0 / TOP_N
-    weights = {symbol: per_weight for symbol, _ in ranked}
-    if len(ranked) < TOP_N:
-        weights[SAFE_HAVEN] = per_weight * (TOP_N - len(ranked))
-    return weights
+
+def choose_ranked_symbols(
+    scores: dict[str, float],
+    current_holdings: set[str],
+    switch_threshold: float,
+) -> list[str]:
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    if not ranked:
+        return []
+
+    if switch_threshold <= 0 or not current_holdings:
+        return [symbol for symbol, _score in ranked[:TOP_N]]
+
+    current_ranked = sorted(
+        [(symbol, scores[symbol]) for symbol in current_holdings if symbol in scores],
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    selected: list[str] = []
+
+    for held_symbol, held_score in current_ranked:
+        challenger = next(
+            (
+                item for item in ranked
+                if item[0] not in current_holdings and item[0] not in selected
+            ),
+            None,
+        )
+        if challenger and challenger[1] > held_score + switch_threshold:
+            continue
+        selected.append(held_symbol)
+        if len(selected) == TOP_N:
+            return selected
+
+    for symbol, _score in ranked:
+        if symbol in selected:
+            continue
+        selected.append(symbol)
+        if len(selected) == TOP_N:
+            break
+
+    return selected
 
 
 def combine_with_fixed_qqq(rotation_weights: dict[str, float], fixed_qqq_weight: float) -> dict[str, float]:
@@ -355,6 +429,7 @@ def print_report(prices: pd.DataFrame, strategy_returns: dict[str, pd.Series]) -
     benchmark_returns = prices[["SPY", "QQQ"]].pct_change().fillna(0.0)
     main_returns = subset_strategy_returns(strategy_returns, MAIN_COMPARISON_NAMES)
     build_up_returns = subset_strategy_returns(strategy_returns, BUILD_UP_COMPARISON_NAMES)
+    experiment_returns = subset_strategy_returns(strategy_returns, EXPERIMENT_COMPARISON_NAMES)
     qqq_core_returns = {
         name: returns for name, returns in strategy_returns.items() if name.startswith("qqq_core_")
     }
@@ -366,6 +441,7 @@ def print_report(prices: pd.DataFrame, strategy_returns: dict[str, pd.Series]) -
     print("=== Full Sample Summary ===")
     print_group_summary("Main Comparison", main_returns, benchmark_returns, None, None)
     print_group_summary("Build-Up Comparison", build_up_returns, benchmark_returns, None, None)
+    print_group_summary("Lightweight Optimization Experiments", experiment_returns, benchmark_returns, None, None)
     if qqq_core_returns:
         print_group_summary("QQQ Core Benchmarks", qqq_core_returns, benchmark_returns, None, None)
 
@@ -382,6 +458,12 @@ def print_report(prices: pd.DataFrame, strategy_returns: dict[str, pd.Series]) -
         print("Build-Up Comparison")
         print(format_percent_frame(build_up_frame[["Total Return", "CAGR", "Max Drawdown"]]).to_string())
         print(build_up_frame[["Sharpe", "SPY Corr", "QQQ Corr"]].round(2).to_string())
+        print()
+
+        experiment_frame = summarize_period(experiment_returns, benchmark_returns, start, end)
+        print("Lightweight Optimization Experiments")
+        print(format_percent_frame(experiment_frame[["Total Return", "CAGR", "Max Drawdown"]]).to_string())
+        print(experiment_frame[["Sharpe", "SPY Corr", "QQQ Corr"]].round(2).to_string())
         print()
 
         if qqq_core_returns:

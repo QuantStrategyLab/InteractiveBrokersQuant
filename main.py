@@ -13,9 +13,11 @@ import pandas as pd
 import pytz
 import pandas_market_calendars as mcal
 from datetime import datetime, timedelta
-from flask import Flask
+from urllib.parse import quote
+from flask import Flask, request
 
 import google.auth
+from google.auth.transport.requests import AuthorizedSession
 try:
     from google.cloud import compute_v1
 except ImportError:
@@ -208,10 +210,14 @@ def send_tg_message(message):
 _last_execution_date = None
 
 
+def current_execution_date():
+    return datetime.now(pytz.timezone('America/New_York')).date()
+
+
 def check_already_executed_today():
     """Return True if strategy already ran today (prevents duplicate orders on retry)."""
     global _last_execution_date
-    today = datetime.now(pytz.timezone('America/New_York')).date()
+    today = current_execution_date()
     if _last_execution_date == today:
         return True
     return False
@@ -219,7 +225,71 @@ def check_already_executed_today():
 
 def mark_executed_today():
     global _last_execution_date
-    _last_execution_date = datetime.now(pytz.timezone('America/New_York')).date()
+    _last_execution_date = current_execution_date()
+
+
+def get_execution_lock_bucket():
+    return os.getenv("EXECUTION_LOCK_BUCKET", "").strip()
+
+
+def get_execution_lock_object_name(execution_date):
+    prefix = os.getenv("EXECUTION_LOCK_PREFIX", "ibkr-quant").strip().strip("/")
+    if prefix:
+        return f"{prefix}/executions/{execution_date.isoformat()}.lock"
+    return f"executions/{execution_date.isoformat()}.lock"
+
+
+def build_authorized_session():
+    credentials, _ = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/devstorage.read_write"]
+    )
+    return AuthorizedSession(credentials)
+
+
+def try_acquire_persistent_execution_lock(execution_date):
+    bucket = get_execution_lock_bucket()
+    if not bucket:
+        return None
+
+    session = build_authorized_session()
+    object_name = quote(get_execution_lock_object_name(execution_date), safe="")
+    url = (
+        f"https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o"
+        f"?uploadType=media&name={object_name}&ifGenerationMatch=0"
+    )
+    payload = (
+        f"date={execution_date.isoformat()}\n"
+        f"created_at={datetime.utcnow().isoformat()}Z\n"
+    ).encode("utf-8")
+
+    response = session.post(
+        url,
+        data=payload,
+        headers={"Content-Type": "text/plain; charset=utf-8"},
+        timeout=10,
+    )
+    if response.status_code in {200, 201}:
+        return True
+    if response.status_code == 412:
+        return False
+    raise RuntimeError(
+        f"Execution lock write failed ({response.status_code}): {response.text}"
+    )
+
+
+def try_acquire_execution_lock():
+    global _last_execution_date
+    if check_already_executed_today():
+        return False
+
+    today = current_execution_date()
+    persistent_lock = try_acquire_persistent_execution_lock(today)
+    if persistent_lock is False:
+        _last_execution_date = today
+        return False
+
+    _last_execution_date = today
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -559,7 +629,7 @@ def execute_rebalance(ib, target_weights, positions, account_values):
 # ---------------------------------------------------------------------------
 def run_strategy_core():
     # Fix I2: Idempotency guard
-    if check_already_executed_today():
+    if not try_acquire_execution_lock():
         msg = t("duplicate_skip")
         send_tg_message(msg)
         return "OK - duplicate skipped"
@@ -600,7 +670,6 @@ def run_strategy_core():
             msg = f"{t('heartbeat_title')}\n{dashboard}\n{SEPARATOR}\n{t('no_trades')}"
             send_tg_message(msg)
             print(msg, flush=True)
-            mark_executed_today()
             return "OK - heartbeat"
 
         # Execute rebalance
@@ -619,7 +688,6 @@ def run_strategy_core():
 
         send_tg_message(msg)
         print(msg, flush=True)
-        mark_executed_today()
         return "OK - executed"
 
     finally:
@@ -632,6 +700,9 @@ def run_strategy_core():
 # ---------------------------------------------------------------------------
 @app.route("/", methods=["POST", "GET"])
 def handle_request():
+    if request.method == "GET":
+        return "OK - use POST to execute strategy", 200
+
     try:
         tz_ny = pytz.timezone('America/New_York')
         now_ny = datetime.now(tz_ny)

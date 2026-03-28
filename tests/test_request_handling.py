@@ -36,6 +36,29 @@ def test_handle_request_post_executes_on_market_day(strategy_module, monkeypatch
     assert observed["called"] is True
 
 
+def test_handle_request_post_can_force_run_on_closed_market(strategy_module, monkeypatch):
+    observed = {"called": False}
+
+    class ClosedCalendar:
+        def schedule(self, start_date, end_date):
+            return pd.DataFrame()
+
+    def fake_run_strategy_core():
+        observed["called"] = True
+        return "OK - executed"
+
+    monkeypatch.setenv("FORCE_RUN_ON_CLOSED_MARKET", "true")
+    monkeypatch.setattr(strategy_module.mcal, "get_calendar", lambda name: ClosedCalendar())
+    monkeypatch.setattr(strategy_module, "run_strategy_core", fake_run_strategy_core)
+
+    with strategy_module.app.test_request_context("/", method="POST"):
+        body, status = strategy_module.handle_request()
+
+    assert status == 200
+    assert body == "OK - executed"
+    assert observed["called"] is True
+
+
 def test_run_strategy_core_allows_multiple_runs_in_same_process(strategy_module, monkeypatch):
     observed = {"connect_calls": 0, "disconnect_calls": 0, "messages": []}
 

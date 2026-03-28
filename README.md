@@ -107,6 +107,7 @@ Equity: $2,100.00 | Buying Power: $50.00
 | `TELEGRAM_TOKEN` | Yes | Telegram bot token |
 | `TELEGRAM_CHAT_ID` | Yes | Telegram chat ID |
 | `NOTIFY_LANG` | No | `en` (default) or `zh` |
+| `FORCE_RUN_ON_CLOSED_MARKET` | No | Debug only. Set to `true` to bypass the market-closed guard for manual connectivity testing. |
 
 Instance name is resolved to internal IP via Compute API at startup by default. The recommended deployment is Cloud Run with Direct VPC egress to the GCE private IP. Set `IB_GATEWAY_IP_MODE=external` only if you intentionally expose the gateway over a public IP and have locked down API access and firewall rules. Service account needs `roles/compute.viewer`.
 
@@ -206,6 +207,7 @@ IBKR 账户
 | `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token |
 | `TELEGRAM_CHAT_ID` | 是 | Telegram Chat ID |
 | `NOTIFY_LANG` | 否 | `en`(默认) 或 `zh` |
+| `FORCE_RUN_ON_CLOSED_MARKET` | 否 | 仅用于调试。设为 `true` 时会跳过休市判断，方便手动排查连通性。 |
 
 实例名称默认会在启动时通过 Compute API 解析为内网 IP。推荐做法是 Cloud Run 通过 Direct VPC egress 访问 GCE 内网地址。只有在你明确要走公网暴露的 GCE 时，才设置 `IB_GATEWAY_IP_MODE=external`。Service account 需要 `roles/compute.viewer` 权限。
 

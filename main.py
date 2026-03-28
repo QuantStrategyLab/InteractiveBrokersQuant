@@ -209,6 +209,11 @@ def send_tg_message(message):
         print(f"Telegram send failed: {e}", flush=True)
 
 
+def force_run_on_closed_market():
+    value = os.getenv("FORCE_RUN_ON_CLOSED_MARKET", "")
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
 # ---------------------------------------------------------------------------
 # IB Gateway connection
 # ---------------------------------------------------------------------------
@@ -619,8 +624,10 @@ def handle_request():
         now_ny = datetime.now(tz_ny)
         nyse = mcal.get_calendar('NYSE')
         schedule = nyse.schedule(start_date=now_ny.date(), end_date=now_ny.date())
-        if schedule.empty:
+        if schedule.empty and not force_run_on_closed_market():
             return "Market Closed", 200
+        if schedule.empty:
+            print("FORCE_RUN_ON_CLOSED_MARKET enabled; bypassing market calendar check", flush=True)
         result = run_strategy_core()
         return result, 200
     except Exception:

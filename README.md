@@ -99,19 +99,16 @@ Equity: $2,100.00 | Buying Power: $50.00
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `IB_GATEWAY_HOST` | Conditional | Legacy explicit host or IP. If not set, the app falls back to `IB_GATEWAY_INSTANCE_NAME`. |
-| `IB_GATEWAY_INSTANCE_NAME` | Conditional | Recommended shared config name for the GCE instance. Useful when Gateway and Quant share the same GitHub-managed config. |
+| `IB_GATEWAY_INSTANCE_NAME` | Yes | GCE instance name for the IB gateway. |
 | `IB_GATEWAY_ZONE` | Yes | GCE zone (e.g. `us-central1-a`) |
 | `IB_GATEWAY_IP_MODE` | No | `internal` (default) or `external`; for Cloud Run, `internal` with Direct VPC egress is recommended |
-| `IB_GATEWAY_MODE` | No | Recommended shared mode flag. `live` maps to port `4001`, `paper` maps to port `4002`. |
-| `IB_GATEWAY_PORT` | No | Legacy explicit port override. If set together with `IB_GATEWAY_MODE`, it must match (`live`=`4001`, `paper`=`4002`). |
+| `IB_GATEWAY_MODE` | Yes | Required mode flag. `live` maps to port `4001`, `paper` maps to port `4002`. |
 | `IB_CLIENT_ID` | No | IB client ID (default: 1) |
 | `TELEGRAM_TOKEN` | Yes | Telegram bot token |
-| `TELEGRAM_CHAT_ID` | Conditional | Per-service Telegram chat ID. If not set, the app falls back to `GLOBAL_TELEGRAM_CHAT_ID`. |
-| `GLOBAL_TELEGRAM_CHAT_ID` | No | Optional shared Telegram chat ID for teams that keep one common destination across multiple quant services. |
+| `GLOBAL_TELEGRAM_CHAT_ID` | Yes | Telegram chat ID used by this service. |
 | `NOTIFY_LANG` | No | `en` (default) or `zh` |
 
-`IB_GATEWAY_HOST` and `IB_GATEWAY_INSTANCE_NAME` are backward-compatible alternatives; one of them must be set. If you use instance-name resolution with `IB_GATEWAY_ZONE`, the service account needs `roles/compute.viewer`. The recommended deployment is Cloud Run with Direct VPC egress to the GCE private IP. Set `IB_GATEWAY_IP_MODE=external` only if you intentionally expose the gateway over a public IP and have locked down API access and firewall rules.
+If you use instance-name resolution with `IB_GATEWAY_ZONE`, the service account needs `roles/compute.viewer`. The recommended deployment is Cloud Run with Direct VPC egress to the GCE private IP. Set `IB_GATEWAY_IP_MODE=external` only if you intentionally expose the gateway over a public IP and have locked down API access and firewall rules.
 
 **Recommended shared-config mode**
 
@@ -125,8 +122,6 @@ IB_GATEWAY_IP_MODE=internal
 IB_CLIENT_ID=1
 NOTIFY_LANG=zh
 ```
-
-In this mode, you do not need to set `IB_GATEWAY_PORT` manually; the app derives it from `IB_GATEWAY_MODE`.
 
 This shared-config mode is only for the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). It is not meant to become a global secret bundle for unrelated quant repos. Across multiple quant projects, the only broadly reusable runtime settings are usually `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG`.
 
@@ -152,18 +147,18 @@ Recommended setup:
   - `GLOBAL_TELEGRAM_CHAT_ID`
   - `NOTIFY_LANG`
 
-On every push to `main`, the workflow updates the existing Cloud Run service with the values above. It does **not** remove legacy `IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, or `TELEGRAM_CHAT_ID`, so existing deployments keep working. Once you have confirmed the service is reading the new shared values as intended, you can remove the legacy Cloud Run env vars manually.
+On every push to `main`, the workflow updates the existing Cloud Run service with the values above and removes `IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, and `TELEGRAM_CHAT_ID`.
 
 Important:
 
-- The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped and the old Google Cloud Trigger + manual Cloud Run env setup keeps working.
+- The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
 - Here "shared config" still only means the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). `GCP_SA_KEY` and `TELEGRAM_TOKEN` remain repository-specific.
 
 ### Deployment
 
 1. **GCE**: Set up IB Gateway (paper or live) on a GCE instance. Ensure API access is enabled, remote clients are allowed when needed, and use `4001` for `live` or `4002` for `paper`.
 2. **VPC / Subnet**: Put Cloud Run and GCE in the same VPC. For cleaner firewall rules, reserve a dedicated subnet for Cloud Run Direct VPC egress.
-3. **Cloud Run**: Deploy or update this Flask app with Direct VPC egress. You can either keep the legacy pair `IB_GATEWAY_HOST + IB_GATEWAY_PORT`, or use the shared-config pair `IB_GATEWAY_INSTANCE_NAME + IB_GATEWAY_MODE`. In both cases keep `IB_GATEWAY_ZONE` and `IB_GATEWAY_IP_MODE=internal`.
+3. **Cloud Run**: Deploy or update this Flask app with Direct VPC egress. Use `IB_GATEWAY_INSTANCE_NAME + IB_GATEWAY_MODE`, and keep `IB_GATEWAY_ZONE` and `IB_GATEWAY_IP_MODE=internal`.
 4. **Firewall**: Allow TCP `4001` (`live`) or `4002` (`paper`) from the Cloud Run egress subnet CIDR to the GCE instance.
 5. **Cloud Scheduler**: Create a job: `45 15 * * 1-5` (America/New_York), POST to the Cloud Run URL. The code handles market calendar checks internally.
 6. **Optional public-IP mode**: Only if you cannot use VPC, set `IB_GATEWAY_IP_MODE=external`, expose the GCE public IP deliberately, and restrict source ranges tightly. This is not the default path.
@@ -247,19 +242,16 @@ IBKR 账户
 
 | 变量 | 必需 | 说明 |
 |------|------|------|
-| `IB_GATEWAY_HOST` | 条件必需 | 旧写法，直接填主机名或 IP。不填时会回退到 `IB_GATEWAY_INSTANCE_NAME`。 |
-| `IB_GATEWAY_INSTANCE_NAME` | 条件必需 | 推荐的共享配置写法，填 GCE 实例名。适合和 Gateway 共用一套 GitHub 配置。 |
+| `IB_GATEWAY_INSTANCE_NAME` | 是 | IB Gateway 所在 GCE 实例名。 |
 | `IB_GATEWAY_ZONE` | 是 | GCE zone (如 `us-central1-a`) |
 | `IB_GATEWAY_IP_MODE` | 否 | `internal`（默认）或 `external`；Cloud Run 推荐配合 Direct VPC egress 使用 `internal` |
-| `IB_GATEWAY_MODE` | 否 | 推荐的共享模式变量。`live` 会映射到 `4001`，`paper` 会映射到 `4002`。 |
-| `IB_GATEWAY_PORT` | 否 | 旧写法，直接指定端口。如果和 `IB_GATEWAY_MODE` 同时配置，必须一致。 |
+| `IB_GATEWAY_MODE` | 是 | 必需。`live` 会映射到 `4001`，`paper` 会映射到 `4002`。 |
 | `IB_CLIENT_ID` | 否 | IB 连接客户端 ID (默认: 1) |
 | `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token |
-| `TELEGRAM_CHAT_ID` | 条件必需 | 当前服务自己的 Telegram Chat ID。不填时会回退到 `GLOBAL_TELEGRAM_CHAT_ID`。 |
-| `GLOBAL_TELEGRAM_CHAT_ID` | 否 | 可选的共享 Telegram Chat ID。适合多个 quant 服务共用一个接收目标。 |
+| `GLOBAL_TELEGRAM_CHAT_ID` | 是 | 这个服务使用的 Telegram Chat ID。 |
 | `NOTIFY_LANG` | 否 | `en`(默认) 或 `zh` |
 
-`IB_GATEWAY_HOST` 和 `IB_GATEWAY_INSTANCE_NAME` 是兼容关系，二选一即可。如果你配了 `IB_GATEWAY_ZONE` 让程序通过实例名解析内网 IP，Cloud Run service account 需要 `roles/compute.viewer` 权限。推荐做法是 Cloud Run 通过 Direct VPC egress 访问 GCE 内网地址。只有在你明确要走公网暴露的 GCE 时，才设置 `IB_GATEWAY_IP_MODE=external`。
+如果你配了 `IB_GATEWAY_ZONE` 让程序通过实例名解析内网 IP，Cloud Run service account 需要 `roles/compute.viewer` 权限。推荐做法是 Cloud Run 通过 Direct VPC egress 访问 GCE 内网地址。只有在你明确要走公网暴露的 GCE 时，才设置 `IB_GATEWAY_IP_MODE=external`。
 
 **推荐的共享配置模式**
 
@@ -273,8 +265,6 @@ IB_GATEWAY_IP_MODE=internal
 IB_CLIENT_ID=1
 NOTIFY_LANG=zh
 ```
-
-这种写法下，不需要再手工维护 `IB_GATEWAY_PORT`，程序会按 `IB_GATEWAY_MODE` 自动推导。
 
 这里说的“共享配置”只针对 **IBKR 这一组系统**，也就是 `IBKRQuant` 和 `IBKRGatewayManager` 之间共享。它不是让所有 quant 仓库都共用一套 secrets。对多个量化仓库来说，通常只有 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG` 适合做跨项目共享。
 
@@ -300,18 +290,18 @@ NOTIFY_LANG=zh
   - `GLOBAL_TELEGRAM_CHAT_ID`
   - `NOTIFY_LANG`
 
-每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里。它**不会主动删除**旧的 `IB_GATEWAY_HOST`、`IB_GATEWAY_PORT` 或 `TELEGRAM_CHAT_ID`，这样现有部署不会被硬切断。等你确认服务已经按预期读取新变量后，再手动删除旧的 Cloud Run env 即可。
+每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里，并删除旧的 `IB_GATEWAY_HOST`、`IB_GATEWAY_PORT` 和 `TELEGRAM_CHAT_ID`。
 
 注意：
 
-- 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过，不影响原来 Google Cloud Trigger + 手工 Cloud Run env 的老流程。
+- 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
 - 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY` 和 `TELEGRAM_TOKEN` 依然是这个仓库自己的 secrets，不建议提升成所有 quant 共用的全局 secret。
 
 ### 部署
 
 1. **GCE**: 部署 IB Gateway（模拟或实盘），确认 API 已开启、需要远程连接时已允许非 localhost 客户端，并确认 `live` 使用 `4001`、`paper` 使用 `4002`。
 2. **VPC / 子网**: 让 Cloud Run 和 GCE 处于同一个 VPC。为了让防火墙规则更干净，建议给 Cloud Run Direct VPC egress 单独准备一个子网。
-3. **Cloud Run**: 部署此 Flask 应用时启用 Direct VPC egress。你可以继续用旧写法 `IB_GATEWAY_HOST + IB_GATEWAY_PORT`，也可以改成推荐的共享写法 `IB_GATEWAY_INSTANCE_NAME + IB_GATEWAY_MODE`。两种方式都要保留 `IB_GATEWAY_ZONE` 和 `IB_GATEWAY_IP_MODE=internal`。Service account 需要 `roles/compute.viewer` 权限。
+3. **Cloud Run**: 部署此 Flask 应用时启用 Direct VPC egress。使用 `IB_GATEWAY_INSTANCE_NAME + IB_GATEWAY_MODE`，并保留 `IB_GATEWAY_ZONE` 和 `IB_GATEWAY_IP_MODE=internal`。Service account 需要 `roles/compute.viewer` 权限。
 4. **防火墙**: 只允许 Cloud Run 出口子网访问 GCE 的 `TCP 4001`（`live`）或 `TCP 4002`（`paper`）。
 5. **Cloud Scheduler**: 创建定时任务 `45 15 * * 1-5`（America/New_York 时区），POST 到 Cloud Run URL。代码内部处理交易日判断。
 6. **可选公网模式**: 只有在不能走 VPC 时，才设置 `IB_GATEWAY_IP_MODE=external`，并且要明确开放 GCE 公网 IP，同时严格限制来源 IP 和防火墙规则。

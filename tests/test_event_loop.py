@@ -43,14 +43,14 @@ def test_instance_name_alias_is_used_as_host(strategy_module):
 
 
 def test_ib_gateway_mode_derives_paper_port(strategy_module_factory):
-    module = strategy_module_factory(IB_GATEWAY_MODE="paper", IB_GATEWAY_PORT=None)
+    module = strategy_module_factory(IB_GATEWAY_MODE="paper")
 
     assert module.IB_PORT == 4002
 
 
-def test_explicit_port_must_match_gateway_mode(strategy_module_factory):
-    with pytest.raises(EnvironmentError, match="conflicts with IB_GATEWAY_MODE=paper"):
-        strategy_module_factory(IB_GATEWAY_MODE="paper", IB_GATEWAY_PORT="4001")
+def test_ib_gateway_mode_is_required(strategy_module_factory):
+    with pytest.raises(EnvironmentError, match="IB_GATEWAY_MODE is required"):
+        strategy_module_factory(IB_GATEWAY_MODE=None)
 
 
 def test_resolve_gce_instance_ip_prefers_internal_by_default(strategy_module, monkeypatch):

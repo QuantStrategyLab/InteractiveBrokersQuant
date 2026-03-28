@@ -22,11 +22,4 @@ grep -Fq "Cloud Run env sync is enabled, but these values are missing:" "$workfl
 grep -Fq "if: steps.config.outputs.enabled == 'true'" "$workflow_file"
 grep -Fq 'IB_GATEWAY_INSTANCE_NAME=${IB_GATEWAY_INSTANCE_NAME}' "$workflow_file"
 grep -Fq 'IB_GATEWAY_MODE=${IB_GATEWAY_MODE}' "$workflow_file"
-if grep -Fq -- "--remove-env-vars IB_GATEWAY_HOST" "$workflow_file"; then
-  echo "workflow should not force-remove legacy gateway vars; keep backward compatibility" >&2
-  exit 1
-fi
-if grep -Fq -- "--remove-env-vars TELEGRAM_CHAT_ID" "$workflow_file"; then
-  echo "workflow should not force-remove TELEGRAM_CHAT_ID; keep backward compatibility" >&2
-  exit 1
-fi
+grep -Fq -- '--remove-env-vars "IB_GATEWAY_HOST,IB_GATEWAY_PORT,TELEGRAM_CHAT_ID"' "$workflow_file"

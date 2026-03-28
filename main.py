@@ -81,13 +81,13 @@ def resolve_gce_instance_ip(instance_name, zone):
 def get_ib_host():
     """
     Resolve IB Gateway host.
-    - Prefer IB_GATEWAY_HOST, fallback to IB_GATEWAY_INSTANCE_NAME
+    - Read IB_GATEWAY_INSTANCE_NAME only
     - If IB_GATEWAY_ZONE is set: resolve instance name via Compute API
-    - If IB_GATEWAY_ZONE is not set: use the configured host directly
+    - If IB_GATEWAY_ZONE is not set: use the configured instance name directly
     """
-    host = os.getenv("IB_GATEWAY_HOST") or os.getenv("IB_GATEWAY_INSTANCE_NAME")
+    host = os.getenv("IB_GATEWAY_INSTANCE_NAME")
     if not host:
-        raise EnvironmentError("IB_GATEWAY_HOST or IB_GATEWAY_INSTANCE_NAME is required")
+        raise EnvironmentError("IB_GATEWAY_INSTANCE_NAME is required")
     zone = os.getenv("IB_GATEWAY_ZONE", "")
     if zone:
         return resolve_gce_instance_ip(host, zone)
@@ -97,29 +97,15 @@ def get_ib_host():
 def get_ib_gateway_mode():
     mode = os.getenv("IB_GATEWAY_MODE", "").strip().lower()
     if not mode:
-        return ""
+        raise EnvironmentError("IB_GATEWAY_MODE is required and must be either 'live' or 'paper'")
     if mode in {"live", "paper"}:
         return mode
     raise EnvironmentError("IB_GATEWAY_MODE must be either 'live' or 'paper'")
 
 
 def get_ib_port():
-    configured_port = os.getenv("IB_GATEWAY_PORT", "").strip()
     mode = get_ib_gateway_mode()
-
-    if configured_port:
-        port = int(configured_port)
-        expected_port = {"live": 4001, "paper": 4002}.get(mode)
-        if expected_port and port != expected_port:
-            raise EnvironmentError(
-                f"IB_GATEWAY_PORT={port} conflicts with IB_GATEWAY_MODE={mode} "
-                f"(expected {expected_port})"
-            )
-        return port
-
-    if mode == "paper":
-        return 4002
-    return 4001
+    return 4002 if mode == "paper" else 4001
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +116,7 @@ IB_PORT = get_ib_port()
 IB_CLIENT_ID = int(os.getenv("IB_CLIENT_ID", "1"))
 
 TG_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("GLOBAL_TELEGRAM_CHAT_ID")
+TG_CHAT_ID = os.getenv("GLOBAL_TELEGRAM_CHAT_ID")
 NOTIFY_LANG = os.getenv("NOTIFY_LANG", "en")
 
 # Strategy parameters

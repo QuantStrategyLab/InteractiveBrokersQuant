@@ -15,13 +15,10 @@ if str(ROOT) not in sys.path:
 def strategy_module_factory(monkeypatch):
     def load_strategy_module(**env_overrides):
         defaults = {
-            "IB_GATEWAY_HOST": None,
             "IB_GATEWAY_INSTANCE_NAME": "127.0.0.1",
             "IB_GATEWAY_ZONE": None,
             "IB_GATEWAY_MODE": "live",
-            "IB_GATEWAY_PORT": None,
             "IB_CLIENT_ID": "1",
-            "TELEGRAM_CHAT_ID": None,
             "GLOBAL_TELEGRAM_CHAT_ID": None,
         }
         defaults.update(env_overrides)

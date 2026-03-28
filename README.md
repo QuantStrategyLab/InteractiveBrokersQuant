@@ -156,6 +156,13 @@ Important:
 - The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
 - Here "shared config" still only means the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). `GCP_SA_KEY` and `TELEGRAM_TOKEN` remain repository-specific.
 
+### Deployment unit and naming
+
+- `QuantPlatformKit` is only a shared dependency; Cloud Run still deploys `InteractiveBrokersQuant` itself.
+- Recommended Cloud Run service name: `interactive-brokers-quant`.
+- If you later rename or move this repository, reselect the GitHub source in Cloud Build / Cloud Run trigger instead of assuming the existing source binding will update itself.
+- For the shared deployment model and trigger migration checklist, see [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md).
+
 ### Deployment
 
 1. **GCE**: Set up IB Gateway (paper or live) on a GCE instance. Ensure API access is enabled, remote clients are allowed when needed, and use `4001` for `live` or `4002` for `paper`.
@@ -300,6 +307,13 @@ NOTIFY_LANG=zh
 
 - 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
 - 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY` 和 `TELEGRAM_TOKEN` 依然是这个仓库自己的 secrets，不建议提升成所有 quant 共用的全局 secret。
+
+### 部署单元和命名建议
+
+- `QuantPlatformKit` 只是共享依赖，不单独部署；Cloud Run 继续只部署 `InteractiveBrokersQuant`。
+- 推荐 Cloud Run 服务名：`interactive-brokers-quant`。
+- 如果后面改 GitHub 仓库名或再次迁组织，Cloud Build / Cloud Run 里的 GitHub 来源需要重新选择，不要假设旧绑定会自动跟过去。
+- 统一部署模型和触发器迁移清单见 [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md)。
 
 ### 部署
 

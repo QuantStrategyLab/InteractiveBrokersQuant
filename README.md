@@ -128,6 +128,8 @@ NOTIFY_LANG=zh
 
 In this mode, you do not need to set `IB_GATEWAY_PORT` manually; the app derives it from `IB_GATEWAY_MODE`.
 
+This shared-config mode is only for the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). It is not meant to become a global secret bundle for unrelated quant repos. Across multiple quant projects, the only broadly reusable runtime settings are usually `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG`.
+
 ### Deployment
 
 1. **GCE**: Set up IB Gateway (paper or live) on a GCE instance. Ensure API access is enabled, remote clients are allowed when needed, and use `4001` for `live` or `4002` for `paper`.
@@ -244,6 +246,8 @@ NOTIFY_LANG=zh
 ```
 
 这种写法下，不需要再手工维护 `IB_GATEWAY_PORT`，程序会按 `IB_GATEWAY_MODE` 自动推导。
+
+这里说的“共享配置”只针对 **IBKR 这一组系统**，也就是 `IBKRQuant` 和 `IBKRGatewayManager` 之间共享。它不是让所有 quant 仓库都共用一套 secrets。对多个量化仓库来说，通常只有 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG` 适合做跨项目共享。
 
 ### 部署
 

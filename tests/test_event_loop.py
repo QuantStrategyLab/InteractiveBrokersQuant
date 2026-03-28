@@ -24,18 +24,16 @@ def test_ensure_event_loop_creates_loop_in_worker_thread(strategy_module):
 def test_connect_ib_prepares_event_loop_before_connect(strategy_module, monkeypatch):
     observed = {}
 
-    class FakeIB:
-        def connect(self, host, port, clientId, timeout):
-            observed["loop"] = asyncio.get_event_loop_policy().get_event_loop()
-            observed["args"] = (host, port, clientId, timeout)
+    def fake_ibkr_connect(host, port, client_id):
+        observed["args"] = (host, port, client_id)
+        return object()
 
-    monkeypatch.setattr(strategy_module, "IB", FakeIB)
+    monkeypatch.setattr(strategy_module, "ibkr_connect_ib", fake_ibkr_connect)
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         executor.submit(strategy_module.connect_ib).result()
 
-    assert observed["args"] == ("127.0.0.1", 4001, 1, 20)
-    assert observed["loop"] is not None
+    assert observed["args"] == ("127.0.0.1", 4001, 1)
 
 
 def test_instance_name_alias_is_used_as_host(strategy_module):

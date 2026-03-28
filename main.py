@@ -21,7 +21,15 @@ try:
 except ImportError:
     compute_v1 = None
 
-from ib_insync import IB, Stock, MarketOrder, LimitOrder
+from quant_platform_kit.common.models import OrderIntent
+from quant_platform_kit.ibkr import (
+    connect_ib as ibkr_connect_ib,
+    ensure_event_loop,
+    fetch_historical_price_series,
+    fetch_portfolio_snapshot,
+    fetch_quote_snapshots,
+    submit_order_intent,
+)
 
 app = Flask(__name__)
 
@@ -224,51 +232,24 @@ def send_tg_message(message):
         print(f"Telegram send failed: {e}", flush=True)
 
 
-# ---------------------------------------------------------------------------
-# IB Gateway connection
-# ---------------------------------------------------------------------------
-def ensure_event_loop():
-    """ib_insync expects an event loop even inside Gunicorn worker threads."""
-    try:
-        loop = asyncio.get_event_loop_policy().get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop
-
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    return loop
-
-
 def connect_ib():
-    ensure_event_loop()
-    ib = IB()
-    ib.connect(IB_HOST, IB_PORT, clientId=IB_CLIENT_ID, timeout=20)
-    return ib
+    return ibkr_connect_ib(IB_HOST, IB_PORT, IB_CLIENT_ID)
 
 
 def get_historical_close(ib, symbol, duration="2 Y", bar_size="1 day"):
-    """Fetch daily close prices from IBKR for a US stock/ETF."""
-    contract = Stock(symbol, 'SMART', 'USD')
-    ib.qualifyContracts(contract)  # Fix I4: qualify before requesting data
-    bars = ib.reqHistoricalData(
-        contract,
-        endDateTime='',
-        durationStr=duration,
-        barSizeSetting=bar_size,
-        whatToShow='ADJUSTED_LAST',
-        useRTH=True,
-        formatDate=1,
+    """Fetch daily close prices from IBKR via QuantPlatformKit."""
+    series = fetch_historical_price_series(
+        ib,
+        symbol,
+        duration=duration,
+        bar_size=bar_size,
     )
-    if not bars:
+    if not series.points:
         return pd.Series(dtype=float)
-    df = pd.DataFrame(bars)
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.set_index('date')
-    return df['close']
+    return pd.Series(
+        data=[point.close for point in series.points],
+        index=pd.to_datetime([point.as_of for point in series.points]),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -399,60 +380,32 @@ def compute_signals(ib, current_holdings):
 # ---------------------------------------------------------------------------
 def get_current_portfolio(ib):
     """Get current positions and account values."""
-    ib.reqPositions()
-    time.sleep(1)
-
+    snapshot = fetch_portfolio_snapshot(ib)
     positions = {}
-    for pos in ib.positions():
-        symbol = pos.contract.symbol
-        if pos.position != 0:
-            positions[symbol] = {
-                'quantity': int(pos.position),
-                'avg_cost': float(pos.avgCost),
-            }
+    for position in snapshot.positions:
+        positions[position.symbol] = {
+            'quantity': int(position.quantity),
+            'avg_cost': float(position.average_cost or 0.0),
+        }
 
-    account_values = {}
-    for av in ib.accountValues():
-        if av.tag == 'NetLiquidation' and av.currency == 'USD':
-            account_values['equity'] = float(av.value)
-        if av.tag == 'AvailableFunds' and av.currency == 'USD':
-            account_values['buying_power'] = float(av.value)
+    account_values = {
+        'equity': snapshot.total_equity,
+        'buying_power': snapshot.buying_power or 0.0,
+    }
 
     return positions, account_values
 
 
 def get_market_prices(ib, symbols):
-    """Fetch market prices for multiple symbols in one pass. Fix C4: no redundant calls."""
-    prices = {}
-    contracts = []
-    for symbol in symbols:
-        contract = Stock(symbol, 'SMART', 'USD')
-        ib.qualifyContracts(contract)
-        contracts.append((symbol, contract))
-
-    # Request all at once
-    tickers = {}
-    for symbol, contract in contracts:
-        tickers[symbol] = ib.reqMktData(contract, '', False, False)
-
-    time.sleep(3)  # Single wait for all
-
-    for symbol, contract in contracts:
-        ib.cancelMktData(contract)
-        tk = tickers[symbol]
-        price = tk.marketPrice()
-        if np.isnan(price) or price <= 0:
-            price = tk.close
-        if not np.isnan(price) and price > 0:
-            prices[symbol] = float(price)
-
-    return prices
+    """Fetch market prices for multiple symbols in one pass."""
+    quotes = fetch_quote_snapshots(ib, symbols)
+    return {symbol: quote.last_price for symbol, quote in quotes.items()}
 
 
-def check_order_submitted(trade, symbol, side_text, qty):
+def check_order_submitted(report):
     """Check if order was accepted. DAY orders auto-expire at close if not filled."""
-    order_id = trade.order.orderId
-    status = trade.orderStatus.status
+    order_id = report.broker_order_id
+    status = report.status
 
     if status in ['Submitted', 'PreSubmitted', 'Filled']:
         return True, f"✅ {t('submitted', order_id=order_id)}"
@@ -505,13 +458,11 @@ def execute_rebalance(ib, target_weights, positions, account_values):
             if qty <= 0:
                 continue
 
-            contract = Stock(symbol, 'SMART', 'USD')
-            ib.qualifyContracts(contract)
-            order = MarketOrder('SELL', qty)
-            trade = ib.placeOrder(contract, order)
-            time.sleep(1)
-
-            ok, status_msg = check_order_submitted(trade, symbol, "Sell", qty)
+            report = submit_order_intent(
+                ib,
+                OrderIntent(symbol=symbol, side='sell', quantity=qty),
+            )
+            ok, status_msg = check_order_submitted(report)
             log = t("market_sell", symbol=symbol, qty=qty) + f" {status_msg}"
             trade_logs.append(log)
             if ok:
@@ -540,14 +491,18 @@ def execute_rebalance(ib, target_weights, positions, account_values):
             if qty <= 0:
                 continue
 
-            contract = Stock(symbol, 'SMART', 'USD')
-            ib.qualifyContracts(contract)
-            order = LimitOrder('BUY', qty, limit_price)
-            order.tif = 'DAY'  # Auto-expire at close if not filled
-            trade = ib.placeOrder(contract, order)
-            time.sleep(1)
-
-            ok, status_msg = check_order_submitted(trade, symbol, "Buy", qty)
+            report = submit_order_intent(
+                ib,
+                OrderIntent(
+                    symbol=symbol,
+                    side='buy',
+                    quantity=qty,
+                    order_type='limit',
+                    limit_price=limit_price,
+                    time_in_force='DAY',
+                ),
+            )
+            ok, status_msg = check_order_submitted(report)
             log = t("limit_buy", symbol=symbol, qty=qty, price=f"{limit_price:.2f}") + f" {status_msg}"
             trade_logs.append(log)
             if ok:

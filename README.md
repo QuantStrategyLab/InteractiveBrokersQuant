@@ -52,7 +52,9 @@ Quarterly momentum rotation across 22 global ETFs (international markets, commod
 ```
 Cloud Scheduler (daily, 15:45 ET on weekdays)
     ↓ HTTP POST
-Cloud Run (Flask: strategy + orders)
+Cloud Run (Flask: strategy + orchestration)
+    ↓ shared adapter package
+QuantPlatformKit (IBKR adapter)
     ↓ ib_insync TCP
 GCE (IB Gateway, always-on)
     ↓
@@ -231,7 +233,9 @@ gcloud run services update ibkr-quant \
 ```
 Cloud Scheduler (每个交易日 15:45 ET)
     ↓ HTTP POST
-Cloud Run (Flask: 策略计算 + 下单)
+Cloud Run (Flask: 策略计算 + 编排)
+    ↓ 共享平台适配层
+QuantPlatformKit (IBKR adapter)
     ↓ ib_insync TCP
 GCE (IB Gateway 常驻)
     ↓

@@ -3,16 +3,11 @@ IBKR Global ETF Rotation Strategy.
 Quarterly momentum rotation across 22 global ETFs + daily canary emergency.
 Runs on Cloud Run; connects to IB Gateway on GCE via ib_insync, alerts via Telegram.
 """
-import asyncio
 import os
 import time
 import traceback
 import requests
-import numpy as np
 import pandas as pd
-import pytz
-import pandas_market_calendars as mcal
-from datetime import datetime, timedelta
 from flask import Flask, request
 
 import google.auth
@@ -29,6 +24,13 @@ from quant_platform_kit.ibkr import (
     fetch_portfolio_snapshot,
     fetch_quote_snapshots,
     submit_order_intent,
+)
+from application.rebalance_service import run_strategy_core as run_rebalance_cycle
+from entrypoints.cloud_run import is_market_open_today
+from strategy.signals import (
+    check_sma as strategy_check_sma,
+    compute_13612w_momentum as strategy_compute_13612w_momentum,
+    compute_signals as strategy_compute_signals,
 )
 
 app = Flask(__name__)
@@ -256,123 +258,29 @@ def get_historical_close(ib, symbol, duration="2 Y", bar_size="1 day"):
 # Strategy logic
 # ---------------------------------------------------------------------------
 def compute_13612w_momentum(closes, as_of_date=None):
-    """Compute Keller's 13612W momentum score from monthly close prices."""
-    if len(closes) < 253:  # ~12 months of daily data
-        return float('nan')
-
-    me = closes.resample('ME').last().dropna()
-    if as_of_date is not None:
-        me = me[me.index <= as_of_date]
-
-    if len(me) < 13:
-        return float('nan')
-
-    cur = me.iloc[-1]
-    lookbacks = {1: 12, 3: 4, 6: 2, 12: 1}
-    s = 0.0
-    for months, weight in lookbacks.items():
-        if len(me) < months + 1:
-            return float('nan')
-        prior = me.iloc[-(months + 1)]
-        if prior == 0 or pd.isna(prior):
-            return float('nan')
-        s += weight * (cur / prior - 1)
-    return s / 19
+    return strategy_compute_13612w_momentum(closes, as_of_date=as_of_date)
 
 
 def check_sma(closes, period=SMA_PERIOD):
-    """Return True if last close > SMA."""
-    if len(closes) < period:
-        return False
-    return bool(closes.iloc[-1] > closes.iloc[-period:].mean())
+    return strategy_check_sma(closes, period=period)
 
 
 def compute_signals(ib, current_holdings):
-    """
-    Compute target weights.
-    Returns (weights_dict, signal_description, is_emergency, canary_str).
-    """
-    # Fetch all price data with pacing (Fix C3)
-    all_tickers = list(set(RANKING_POOL + CANARY_ASSETS + [SAFE_HAVEN]))
-    price_data = {}
-    for ticker in all_tickers:
-        try:
-            closes = get_historical_close(ib, ticker)
-            if len(closes) > 0:
-                price_data[ticker] = closes
-        except Exception as e:
-            print(f"Warning: failed to fetch {ticker}: {e}", flush=True)
-        time.sleep(HIST_DATA_PACING_SEC)  # Fix C3: IBKR pacing between requests
-
-    # --- Step 1: Daily canary check ---
-    n_bad = 0
-    canary_details = []
-    for c in CANARY_ASSETS:
-        if c not in price_data:
-            n_bad += 1
-            canary_details.append(f"{c}:❌(no data)")
-            continue
-        mom = compute_13612w_momentum(price_data[c])
-        if np.isnan(mom) or mom < 0:
-            n_bad += 1
-            canary_details.append(f"{c}:❌({mom:.3f})" if not np.isnan(mom) else f"{c}:❌(nan)")
-        else:
-            canary_details.append(f"{c}:✅({mom:.3f})")
-
-    canary_str = ', '.join(canary_details)
-
-    if n_bad >= CANARY_BAD_THRESHOLD:
-        # Emergency: all defensive
-        signal_desc = t("emergency", n_bad=n_bad, safe=SAFE_HAVEN)
-        return {SAFE_HAVEN: 1.0}, signal_desc, True, canary_str
-
-    # --- Step 2: Check if this is a quarterly rebalance day ---
-    tz_ny = pytz.timezone('America/New_York')
-    now_ny = datetime.now(tz_ny)
-    nyse = mcal.get_calendar('NYSE')
-
-    is_rebal_day = False
-    if now_ny.month in REBALANCE_MONTHS:
-        month_start = now_ny.replace(day=1)
-        month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-        schedule = nyse.schedule(start_date=month_start, end_date=month_end)
-        if not schedule.empty:
-            last_trading_day = schedule.index[-1].date()
-            is_rebal_day = (now_ny.date() == last_trading_day)
-
-    if not is_rebal_day:
-        signal_desc = t("daily_check")
-        return None, signal_desc, False, canary_str
-
-    # --- Step 3: Quarterly rebalance ---
-    scores = {}
-    for ticker in RANKING_POOL:
-        if ticker not in price_data:
-            continue
-        mom = compute_13612w_momentum(price_data[ticker])
-        if np.isnan(mom):
-            continue
-        if not check_sma(price_data[ticker]):
-            continue
-        bonus = HOLD_BONUS if ticker in current_holdings else 0.0
-        scores[ticker] = mom + bonus
-
-    sorted_tickers = sorted(scores.items(), key=lambda x: -x[1])
-    top = sorted_tickers[:TOP_N]
-
-    if len(top) == 0:
-        signal_desc = t("emergency", n_bad="SMA", safe=SAFE_HAVEN)
-        return {SAFE_HAVEN: 1.0}, signal_desc, False, canary_str
-
-    per = 1.0 / TOP_N
-    weights = {ticker: per for ticker, _ in top}
-    if len(top) < TOP_N:
-        weights[SAFE_HAVEN] = weights.get(SAFE_HAVEN, 0) + per * (TOP_N - len(top))
-
-    top_str = ', '.join(f"{ticker}({score:.3f})" for ticker, score in top)
-    signal_desc = t("quarterly", n=TOP_N) + f"\n  Top: {top_str}"
-
-    return weights, signal_desc, False, canary_str
+    return strategy_compute_signals(
+        ib,
+        current_holdings,
+        get_historical_close=get_historical_close,
+        ranking_pool=RANKING_POOL,
+        canary_assets=CANARY_ASSETS,
+        safe_haven=SAFE_HAVEN,
+        top_n=TOP_N,
+        hold_bonus=HOLD_BONUS,
+        canary_bad_threshold=CANARY_BAD_THRESHOLD,
+        rebalance_months=REBALANCE_MONTHS,
+        translator=t,
+        pacing_sec=HIST_DATA_PACING_SEC,
+        sma_period=SMA_PERIOD,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -515,65 +423,15 @@ def execute_rebalance(ib, target_weights, positions, account_values):
 # Main strategy runner
 # ---------------------------------------------------------------------------
 def run_strategy_core():
-    ib = None  # Fix C5: safe disconnect
-    try:
-        ib = connect_ib()
-
-        # Get current state
-        positions, account_values = get_current_portfolio(ib)
-        equity = account_values.get('equity', 0)
-        buying_power = account_values.get('buying_power', 0)
-
-        current_holdings = set(positions.keys())
-
-        # Compute signals
-        target_weights, signal_desc, is_emergency, canary_str = compute_signals(ib, current_holdings)
-
-        # Build dashboard using account values (no extra market data calls) Fix C4
-        pos_lines = []
-        for symbol in sorted(positions.keys()):
-            qty = positions[symbol]['quantity']
-            avg = positions[symbol]['avg_cost']
-            mv = qty * avg
-            pos_lines.append(f"  {symbol}: {qty}股 ${mv:,.2f}")
-        pos_str = '\n'.join(pos_lines) if pos_lines else "  (空仓)"
-
-        dashboard = (
-            f"{t('equity')}: ${equity:,.2f} | {t('buying_power')}: ${buying_power:,.2f}\n"
-            f"{SEPARATOR}\n"
-            f"{pos_str}\n"
-            f"{SEPARATOR}\n"
-            f"🐤 {canary_str}\n"
-            f"🎯 {signal_desc}"
-        )
-
-        if target_weights is None:
-            msg = f"{t('heartbeat_title')}\n{dashboard}\n{SEPARATOR}\n{t('no_trades')}"
-            send_tg_message(msg)
-            print(msg, flush=True)
-            return "OK - heartbeat"
-
-        # Execute rebalance
-        trade_logs = execute_rebalance(ib, target_weights, positions, account_values)
-
-        if trade_logs:
-            trades_str = '\n'.join(trade_logs)
-            msg = (
-                f"{t('rebalance_title')}\n"
-                f"{dashboard}\n"
-                f"{SEPARATOR}\n"
-                f"{trades_str}"
-            )
-        else:
-            msg = f"{t('heartbeat_title')}\n{dashboard}\n{SEPARATOR}\n{t('no_trades')}"
-
-        send_tg_message(msg)
-        print(msg, flush=True)
-        return "OK - executed"
-
-    finally:
-        if ib is not None and ib.isConnected():  # Fix C5: safe disconnect
-            ib.disconnect()
+    return run_rebalance_cycle(
+        connect_ib=connect_ib,
+        get_current_portfolio=get_current_portfolio,
+        compute_signals=compute_signals,
+        execute_rebalance=execute_rebalance,
+        send_tg_message=send_tg_message,
+        translator=t,
+        separator=SEPARATOR,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -585,11 +443,7 @@ def handle_request():
         return "OK - use POST to execute strategy", 200
 
     try:
-        tz_ny = pytz.timezone('America/New_York')
-        now_ny = datetime.now(tz_ny)
-        nyse = mcal.get_calendar('NYSE')
-        schedule = nyse.schedule(start_date=now_ny.date(), end_date=now_ny.date())
-        if schedule.empty:
+        if not is_market_open_today():
             return "Market Closed", 200
         result = run_strategy_core()
         return result, 200

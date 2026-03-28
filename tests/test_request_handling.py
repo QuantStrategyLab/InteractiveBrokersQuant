@@ -1,6 +1,3 @@
-import pandas as pd
-
-
 def test_handle_request_get_returns_safe_message(strategy_module, monkeypatch):
     def fail_if_called():
         raise AssertionError("GET should not execute strategy")
@@ -17,15 +14,11 @@ def test_handle_request_get_returns_safe_message(strategy_module, monkeypatch):
 def test_handle_request_post_executes_on_market_day(strategy_module, monkeypatch):
     observed = {"called": False}
 
-    class FakeCalendar:
-        def schedule(self, start_date, end_date):
-            return pd.DataFrame({"market_open": [pd.Timestamp("2026-03-27 09:30:00")]}, index=[pd.Timestamp("2026-03-27")])
-
     def fake_run_strategy_core():
         observed["called"] = True
         return "OK - executed"
 
-    monkeypatch.setattr(strategy_module.mcal, "get_calendar", lambda name: FakeCalendar())
+    monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: True)
     monkeypatch.setattr(strategy_module, "run_strategy_core", fake_run_strategy_core)
 
     with strategy_module.app.test_request_context("/", method="POST"):
@@ -37,14 +30,10 @@ def test_handle_request_post_executes_on_market_day(strategy_module, monkeypatch
 
 
 def test_handle_request_post_returns_market_closed_when_schedule_empty(strategy_module, monkeypatch):
-    class ClosedCalendar:
-        def schedule(self, start_date, end_date):
-            return pd.DataFrame()
-
     def fail_if_called():
         raise AssertionError("Closed market should not execute strategy")
 
-    monkeypatch.setattr(strategy_module.mcal, "get_calendar", lambda name: ClosedCalendar())
+    monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: False)
     monkeypatch.setattr(strategy_module, "run_strategy_core", fail_if_called)
 
     with strategy_module.app.test_request_context("/", method="POST"):

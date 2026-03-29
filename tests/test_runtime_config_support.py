@@ -5,6 +5,7 @@ from runtime_config_support import (
     load_platform_runtime_settings,
     parse_account_group_configs,
 )
+from strategy_registry import IBKR_PLATFORM, US_EQUITY_DOMAIN, get_supported_profiles_for_platform
 
 
 MINIMAL_GROUP_JSON = (
@@ -66,6 +67,7 @@ def test_load_platform_runtime_settings_uses_minimal_group_config(monkeypatch):
     assert settings.ib_gateway_ip_mode == "internal"
     assert settings.ib_client_id == 1
     assert settings.strategy_profile == DEFAULT_STRATEGY_PROFILE
+    assert settings.strategy_domain == US_EQUITY_DOMAIN
     assert settings.account_group == "default"
     assert settings.service_name is None
     assert settings.account_ids == ()
@@ -98,6 +100,7 @@ def test_load_platform_runtime_settings_supports_explicit_group_config_values(mo
     assert settings.ib_gateway_ip_mode == "external"
     assert settings.ib_client_id == 7
     assert settings.strategy_profile == DEFAULT_STRATEGY_PROFILE
+    assert settings.strategy_domain == US_EQUITY_DOMAIN
     assert settings.account_group == "taxable_main"
     assert settings.service_name == "interactive-brokers-quant-main"
     assert settings.account_ids == ("U1234567",)
@@ -114,6 +117,10 @@ def test_load_platform_runtime_settings_rejects_unknown_strategy_profile(monkeyp
 
     with pytest.raises(ValueError, match="Unsupported STRATEGY_PROFILE"):
         load_platform_runtime_settings(project_id_resolver=lambda: None)
+
+
+def test_platform_supported_profiles_are_filtered_by_registry():
+    assert get_supported_profiles_for_platform(IBKR_PLATFORM) == frozenset({DEFAULT_STRATEGY_PROFILE})
 
 
 

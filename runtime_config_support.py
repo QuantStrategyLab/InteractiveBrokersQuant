@@ -5,8 +5,12 @@ import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
-DEFAULT_STRATEGY_PROFILE = "global_etf_rotation"
-SUPPORTED_STRATEGY_PROFILES = frozenset({DEFAULT_STRATEGY_PROFILE})
+from strategy_registry import (
+    DEFAULT_STRATEGY_PROFILE,
+    IBKR_PLATFORM,
+    resolve_strategy_definition,
+)
+
 DEFAULT_ACCOUNT_GROUP = "default"
 
 
@@ -30,6 +34,7 @@ class PlatformRuntimeSettings:
     ib_gateway_ip_mode: str
     ib_client_id: int
     strategy_profile: str
+    strategy_domain: str
     account_group: str
     service_name: str | None
     account_ids: tuple[str, ...]
@@ -45,7 +50,10 @@ def load_platform_runtime_settings(
     secret_client_factory: Callable[[], Any] | None = None,
 ) -> PlatformRuntimeSettings:
     project_id = project_id_resolver()
-    strategy_profile = resolve_strategy_profile(os.getenv("STRATEGY_PROFILE"))
+    strategy_definition = resolve_strategy_definition(
+        os.getenv("STRATEGY_PROFILE"),
+        platform_id=IBKR_PLATFORM,
+    )
     account_group = resolve_account_group(os.getenv("ACCOUNT_GROUP"))
     group_config = load_account_group_config(
         project_id=project_id,
@@ -85,7 +93,8 @@ def load_platform_runtime_settings(
             field_name="ib_client_id",
             account_group=account_group,
         ),
-        strategy_profile=strategy_profile,
+        strategy_profile=strategy_definition.profile,
+        strategy_domain=strategy_definition.domain,
         account_group=account_group,
         service_name=group_config.service_name,
         account_ids=group_config.account_ids,
@@ -96,15 +105,10 @@ def load_platform_runtime_settings(
 
 
 def resolve_strategy_profile(raw_value: str | None) -> str:
-    value = (raw_value or "").strip().lower()
-    if not value:
-        raise EnvironmentError("STRATEGY_PROFILE is required")
-    if value not in SUPPORTED_STRATEGY_PROFILES:
-        supported = ", ".join(sorted(SUPPORTED_STRATEGY_PROFILES))
-        raise ValueError(
-            f"Unsupported STRATEGY_PROFILE={raw_value!r}; supported values: {supported}"
-        )
-    return value
+    return resolve_strategy_definition(
+        raw_value,
+        platform_id=IBKR_PLATFORM,
+    ).profile
 
 
 def resolve_account_group(raw_value: str | None) -> str:

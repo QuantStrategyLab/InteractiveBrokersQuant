@@ -105,7 +105,7 @@ The selected `ACCOUNT_GROUP` is now the runtime identity. Keep broker-specific i
 |----------|----------|-------------|
 | `IB_GATEWAY_ZONE` | Optional fallback | GCE zone (for example `us-central1-a`). Recommended to keep in the selected account-group entry; this env var is only a transition fallback. |
 | `IB_GATEWAY_IP_MODE` | Optional fallback | `internal` (default) or `external`. Recommended to keep in the selected account-group entry; this env var is only a transition fallback. |
-| `STRATEGY_PROFILE` | Yes | Strategy profile selector. Current required value: `global_etf_rotation` |
+| `STRATEGY_PROFILE` | Yes | Strategy profile selector. Current required `us_equity` value: `global_etf_rotation` |
 | `ACCOUNT_GROUP` | Yes | Account-group selector. No default fallback. |
 | `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Yes for Cloud Run | Secret Manager secret name for account-group config JSON. Recommended production source. |
 | `IB_ACCOUNT_GROUP_CONFIG_JSON` | No | Local/dev JSON fallback for account-group config. Not recommended for production Cloud Run. |
@@ -205,7 +205,7 @@ Recommended setup:
 
 On every push to `main`, the workflow updates the existing Cloud Run service with the values above and removes legacy env vars that should now live in the account-group config (`IB_CLIENT_ID`, `IB_GATEWAY_INSTANCE_NAME`, `IB_GATEWAY_MODE`) plus the older transport vars (`IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, `TELEGRAM_CHAT_ID`). If `IB_GATEWAY_ZONE` or `IB_GATEWAY_IP_MODE` are blank in GitHub, the workflow also removes them from Cloud Run to avoid drift.
 
-For now, `STRATEGY_PROFILE` still only supports one strategy profile. `ACCOUNT_GROUP` now selects one account-group config entry, and the service fails fast if that runtime identity is incomplete.
+For now, `STRATEGY_PROFILE` still only supports one strategy profile. The current strategy domain is `us_equity`, and the repo now keeps a thin strategy registry so future expansion can grow by domain + profile instead of mixing strategy and platform in one layer. `ACCOUNT_GROUP` now selects one account-group config entry, and the service fails fast if that runtime identity is incomplete.
 
 Important:
 
@@ -317,7 +317,7 @@ IBKR 账户
 |------|------|------|
 | `IB_GATEWAY_ZONE` | 可选过渡项 | GCE zone（如 `us-central1-a`）。推荐直接放进选中的账号组配置里；这里只保留过渡 fallback。 |
 | `IB_GATEWAY_IP_MODE` | 可选过渡项 | `internal`（默认）或 `external`。推荐直接放进选中的账号组配置里；这里只保留过渡 fallback。 |
-| `STRATEGY_PROFILE` | 是 | 策略档位选择。当前必填值：`global_etf_rotation` |
+| `STRATEGY_PROFILE` | 是 | 策略档位选择。当前必填的 `us_equity` 值：`global_etf_rotation` |
 | `ACCOUNT_GROUP` | 是 | 账号组选择器，不再提供默认回退。 |
 | `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Cloud Run 建议必填 | 账号组配置 JSON 在 Secret Manager 里的密钥名。生产环境推荐使用。 |
 | `IB_ACCOUNT_GROUP_CONFIG_JSON` | 否 | 本地开发用的账号组配置 JSON fallback。不建议在生产 Cloud Run 直接使用。 |
@@ -417,7 +417,7 @@ IB_GATEWAY_IP_MODE=internal
 
 每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里，并清掉已经转移到账号组配置里的旧 env（`IB_CLIENT_ID`、`IB_GATEWAY_INSTANCE_NAME`、`IB_GATEWAY_MODE`）以及更早的传输层 env（`IB_GATEWAY_HOST`、`IB_GATEWAY_PORT`、`TELEGRAM_CHAT_ID`）。如果 GitHub 里没有配置 `IB_GATEWAY_ZONE` 或 `IB_GATEWAY_IP_MODE`，workflow 也会把 Cloud Run 上这两个旧值一起删除，避免双配置源漂移。
 
-当前这一步里，`STRATEGY_PROFILE` 仍然只有一个可用值；`ACCOUNT_GROUP` 已经变成严格必填，并会选中一份账号组配置。只要运行身份不完整，服务就会直接失败，不再静默回退。
+当前这一步里，`STRATEGY_PROFILE` 仍然只有一个可用值；当前策略大类是 `us_equity`，仓库里也已经保留了一层很薄的策略注册表，后面可以沿着“策略大类 + 具体策略 + 平台兼容性”继续扩。`ACCOUNT_GROUP` 已经变成严格必填，并会选中一份账号组配置。只要运行身份不完整，服务就会直接失败，不再静默回退。
 
 注意：
 

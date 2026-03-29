@@ -12,6 +12,7 @@ jobs:
       ENABLE_GITHUB_ENV_SYNC: ${{ vars.ENABLE_GITHUB_ENV_SYNC }}
       CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
       CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      TELEGRAM_TOKEN_SECRET_NAME: ${{ vars.TELEGRAM_TOKEN_SECRET_NAME }}
       STRATEGY_PROFILE: ${{ vars.STRATEGY_PROFILE }}
       ACCOUNT_GROUP: ${{ vars.ACCOUNT_GROUP }}
       IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME: ${{ vars.IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME }}
@@ -42,7 +43,6 @@ jobs:
             GLOBAL_TELEGRAM_CHAT_ID
             NOTIFY_LANG
             GCP_SA_KEY
-            TELEGRAM_TOKEN
           )
 
           missing_vars=()
@@ -51,6 +51,10 @@ jobs:
               missing_vars+=("${var_name}")
             fi
           done
+
+          if [ -z "${TELEGRAM_TOKEN_SECRET_NAME:-}" ] && [ -z "${TELEGRAM_TOKEN:-}" ]; then
+            missing_vars+=("TELEGRAM_TOKEN_SECRET_NAME or TELEGRAM_TOKEN")
+          fi
 
           if [ "${#missing_vars[@]}" -gt 0 ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -81,13 +85,13 @@ jobs:
           set -euo pipefail
 
           env_pairs=(
-            "TELEGRAM_TOKEN=${TELEGRAM_TOKEN}"
             "GLOBAL_TELEGRAM_CHAT_ID=${GLOBAL_TELEGRAM_CHAT_ID}"
             "NOTIFY_LANG=${NOTIFY_LANG}"
             "STRATEGY_PROFILE=${STRATEGY_PROFILE}"
             "ACCOUNT_GROUP=${ACCOUNT_GROUP}"
             "IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=${IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME}"
           )
+          secret_pairs=()
 
           remove_env_vars=(
             "IB_GATEWAY_HOST"
@@ -97,6 +101,14 @@ jobs:
             "IB_GATEWAY_INSTANCE_NAME"
             "IB_GATEWAY_MODE"
           )
+          remove_secret_vars=()
+
+          if [ -n "${TELEGRAM_TOKEN_SECRET_NAME:-}" ]; then
+            secret_pairs+=("TELEGRAM_TOKEN=${TELEGRAM_TOKEN_SECRET_NAME}:latest")
+          else
+            env_pairs+=("TELEGRAM_TOKEN=${TELEGRAM_TOKEN}")
+            remove_secret_vars+=("TELEGRAM_TOKEN")
+          fi
 
           if [ -n "${IB_GATEWAY_ZONE:-}" ]; then
             env_pairs+=("IB_GATEWAY_ZONE=${IB_GATEWAY_ZONE}")
@@ -110,7 +122,19 @@ jobs:
             remove_env_vars+=("IB_GATEWAY_IP_MODE")
           fi
 
-          gcloud run services update "${CLOUD_RUN_SERVICE}" \
-            --region "${CLOUD_RUN_REGION}" \
-            --remove-env-vars "$(IFS=,; echo "${remove_env_vars[*]}")" \
+          gcloud_args=(
+            run services update "${CLOUD_RUN_SERVICE}"
+            --region "${CLOUD_RUN_REGION}"
+            --remove-env-vars "$(IFS=,; echo "${remove_env_vars[*]}")"
             --update-env-vars "$(IFS=,; echo "${env_pairs[*]}")"
+          )
+
+          if [ "${#remove_secret_vars[@]}" -gt 0 ]; then
+            gcloud_args+=(--remove-secrets "$(IFS=,; echo "${remove_secret_vars[*]}")")
+          fi
+
+          if [ "${#secret_pairs[@]}" -gt 0 ]; then
+            gcloud_args+=(--update-secrets "$(IFS=,; echo "${secret_pairs[*]}")")
+          fi
+
+          gcloud "${gcloud_args[@]}"

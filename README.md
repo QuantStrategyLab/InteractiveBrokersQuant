@@ -109,7 +109,7 @@ The selected `ACCOUNT_GROUP` is now the runtime identity. Keep broker-specific i
 | `ACCOUNT_GROUP` | Yes | Account-group selector. No default fallback. |
 | `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Yes for Cloud Run | Secret Manager secret name for account-group config JSON. Recommended production source. |
 | `IB_ACCOUNT_GROUP_CONFIG_JSON` | No | Local/dev JSON fallback for account-group config. Not recommended for production Cloud Run. |
-| `TELEGRAM_TOKEN` | Yes | Telegram bot token |
+| `TELEGRAM_TOKEN` | Yes | Telegram bot token. For Cloud Run, prefer a Secret Manager reference instead of a literal env var. |
 | `GLOBAL_TELEGRAM_CHAT_ID` | Yes | Telegram chat ID used by this service. |
 | `NOTIFY_LANG` | No | `en` (default) or `zh` |
 
@@ -155,7 +155,7 @@ Recommended account-group config payload:
       "ib_gateway_mode": "paper",
       "ib_gateway_ip_mode": "internal",
       "ib_client_id": 1,
-      "service_name": "interactive-brokers-quant",
+      "service_name": "interactive-brokers-quant-global-etf-rotation",
       "account_ids": ["DU1234567"]
     },
     "ira": {
@@ -164,7 +164,7 @@ Recommended account-group config payload:
       "ib_gateway_mode": "paper",
       "ib_gateway_ip_mode": "internal",
       "ib_client_id": 7,
-      "service_name": "interactive-brokers-quant-ira",
+      "service_name": "interactive-brokers-quant-global-etf-rotation-ira",
       "account_ids": ["U1234567"]
     }
   }
@@ -190,6 +190,7 @@ Recommended setup:
   - `ENABLE_GITHUB_ENV_SYNC` = `true`
   - `CLOUD_RUN_REGION`
   - `CLOUD_RUN_SERVICE`
+  - `TELEGRAM_TOKEN_SECRET_NAME` (recommended when Cloud Run already uses Secret Manager for `TELEGRAM_TOKEN`)
   - `STRATEGY_PROFILE` (recommended: `global_etf_rotation`)
   - `ACCOUNT_GROUP` (recommended: `default`)
   - `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`
@@ -197,7 +198,7 @@ Recommended setup:
   - `NOTIFY_LANG`
 - **Repository Secrets**
   - `GCP_SA_KEY`
-  - `TELEGRAM_TOKEN`
+  - `TELEGRAM_TOKEN` (fallback only when `TELEGRAM_TOKEN_SECRET_NAME` is not set)
 - **Optional transition Variables**
   - `IB_GATEWAY_ZONE`
   - `IB_GATEWAY_IP_MODE`
@@ -209,14 +210,14 @@ For now, `STRATEGY_PROFILE` still only supports one strategy profile. `ACCOUNT_G
 Important:
 
 - The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
-- Here "shared config" still only means the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). `GCP_SA_KEY` and `TELEGRAM_TOKEN` remain repository-specific.
+- Here "shared config" still only means the **IBKR pair** (`InteractiveBrokersPlatform` + `IBKRGatewayManager`). `GCP_SA_KEY`, `TELEGRAM_TOKEN`, and `TELEGRAM_TOKEN_SECRET_NAME` remain repository-specific.
 - If `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` is set, the Cloud Run runtime needs Secret Manager access to that secret.
 - `GCP_SA_KEY` belongs to the GitHub Actions deploy identity, not to the Cloud Run runtime service account.
 
 ### Deployment unit and naming
 
-- `QuantPlatformKit` is only a shared dependency; Cloud Run still deploys `InteractiveBrokersQuant` itself.
-- Recommended Cloud Run service name: `interactive-brokers-quant`.
+- `QuantPlatformKit` is only a shared dependency; Cloud Run now deploys `InteractiveBrokersPlatform`.
+- Recommended Cloud Run service name: `interactive-brokers-quant-global-etf-rotation`.
 - For future multi-account rollout, keep one Cloud Run service per `ACCOUNT_GROUP`, and let each service select its account-group config at runtime.
 - If you later rename or move this repository, reselect the GitHub source in Cloud Build / Cloud Run trigger instead of assuming the existing source binding will update itself.
 - For the shared deployment model and trigger migration checklist, see [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md).
@@ -233,7 +234,7 @@ Important:
 Example deploy/update command:
 
 ```bash
-gcloud run deploy interactive-brokers-quant \
+gcloud run deploy interactive-brokers-quant-global-etf-rotation \
   --source . \
   --region us-central1 \
   --service-account interactive-brokers-quant-runtime@PROJECT_ID.iam.gserviceaccount.com \
@@ -320,7 +321,7 @@ IBKR 账户
 | `ACCOUNT_GROUP` | 是 | 账号组选择器，不再提供默认回退。 |
 | `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Cloud Run 建议必填 | 账号组配置 JSON 在 Secret Manager 里的密钥名。生产环境推荐使用。 |
 | `IB_ACCOUNT_GROUP_CONFIG_JSON` | 否 | 本地开发用的账号组配置 JSON fallback。不建议在生产 Cloud Run 直接使用。 |
-| `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token |
+| `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token。Cloud Run 上更推荐走 Secret Manager 引用，不要直接写成明文 env。 |
 | `GLOBAL_TELEGRAM_CHAT_ID` | 是 | 这个服务使用的 Telegram Chat ID。 |
 | `NOTIFY_LANG` | 否 | `en`（默认）或 `zh` |
 
@@ -366,7 +367,7 @@ IB_GATEWAY_IP_MODE=internal
       "ib_gateway_mode": "paper",
       "ib_gateway_ip_mode": "internal",
       "ib_client_id": 1,
-      "service_name": "interactive-brokers-quant",
+      "service_name": "interactive-brokers-quant-global-etf-rotation",
       "account_ids": ["DU1234567"]
     },
     "ira": {
@@ -375,7 +376,7 @@ IB_GATEWAY_IP_MODE=internal
       "ib_gateway_mode": "paper",
       "ib_gateway_ip_mode": "internal",
       "ib_client_id": 7,
-      "service_name": "interactive-brokers-quant-ira",
+      "service_name": "interactive-brokers-quant-global-etf-rotation-ira",
       "account_ids": ["U1234567"]
     }
   }
@@ -401,6 +402,7 @@ IB_GATEWAY_IP_MODE=internal
   - `ENABLE_GITHUB_ENV_SYNC` = `true`
   - `CLOUD_RUN_REGION`
   - `CLOUD_RUN_SERVICE`
+  - `TELEGRAM_TOKEN_SECRET_NAME`（如果 Cloud Run 上的 `TELEGRAM_TOKEN` 已经改成 Secret Manager，建议配置）
   - `STRATEGY_PROFILE`（建议设为 `global_etf_rotation`）
   - `ACCOUNT_GROUP`（建议设为 `default`）
   - `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`
@@ -408,7 +410,7 @@ IB_GATEWAY_IP_MODE=internal
   - `NOTIFY_LANG`
 - **仓库级 Secrets**
   - `GCP_SA_KEY`
-  - `TELEGRAM_TOKEN`
+  - `TELEGRAM_TOKEN`（仅在没设置 `TELEGRAM_TOKEN_SECRET_NAME` 时作为 fallback）
 - **可选过渡 Variables**
   - `IB_GATEWAY_ZONE`
   - `IB_GATEWAY_IP_MODE`
@@ -420,14 +422,14 @@ IB_GATEWAY_IP_MODE=internal
 注意：
 
 - 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
-- 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY` 和 `TELEGRAM_TOKEN` 依然是这个仓库自己的 secrets，不建议提升成所有 quant 共用的全局 secret。
+- 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY`、`TELEGRAM_TOKEN` 和 `TELEGRAM_TOKEN_SECRET_NAME` 都还是这个仓库自己的配置，不建议提升成所有 quant 共用的全局配置。
 - 如果设置了 `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`，Cloud Run 运行时还需要有对应 Secret 的访问权限。
 - `GCP_SA_KEY` 对应的是 GitHub Actions 的部署身份，不是 Cloud Run runtime service account。
 
 ### 部署单元和命名建议
 
-- `QuantPlatformKit` 只是共享依赖，不单独部署；Cloud Run 继续只部署 `InteractiveBrokersQuant`。
-- 推荐 Cloud Run 服务名：`interactive-brokers-quant`。
+- `QuantPlatformKit` 只是共享依赖，不单独部署；Cloud Run 现在部署的是 `InteractiveBrokersPlatform`。
+- 推荐 Cloud Run 服务名：`interactive-brokers-quant-global-etf-rotation`。
 - 后续如果扩到多账户，建议按 `ACCOUNT_GROUP` 拆成多个 Cloud Run 服务，并让每个服务在运行时选中自己的账号组配置。
 - 如果后面改 GitHub 仓库名或再次迁组织，Cloud Build / Cloud Run 里的 GitHub 来源需要重新选择，不要假设旧绑定会自动跟过去。
 - 统一部署模型和触发器迁移清单见 [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md)。
@@ -444,7 +446,7 @@ IB_GATEWAY_IP_MODE=internal
 示例部署命令：
 
 ```bash
-gcloud run deploy interactive-brokers-quant \
+gcloud run deploy interactive-brokers-quant-global-etf-rotation \
   --source . \
   --region us-central1 \
   --service-account interactive-brokers-quant-runtime@PROJECT_ID.iam.gserviceaccount.com \

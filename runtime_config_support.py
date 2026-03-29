@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 DEFAULT_STRATEGY_PROFILE = "global_etf_rotation"
 SUPPORTED_STRATEGY_PROFILES = frozenset({DEFAULT_STRATEGY_PROFILE})
 DEFAULT_ACCOUNT_GROUP = "default"
+
+
+@dataclass(frozen=True)
+class AccountGroupConfig:
+    ib_gateway_instance_name: str | None = None
+    ib_gateway_zone: str | None = None
+    ib_gateway_mode: str | None = None
+    ib_gateway_ip_mode: str | None = None
+    ib_client_id: int | None = None
+    service_name: str | None = None
+    account_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -19,6 +31,8 @@ class PlatformRuntimeSettings:
     ib_client_id: int
     strategy_profile: str
     account_group: str
+    service_name: str | None
+    account_ids: tuple[str, ...]
     tg_token: str | None
     tg_chat_id: str | None
     notify_lang: str
@@ -28,20 +42,47 @@ def load_platform_runtime_settings(
     *,
     project_id_resolver: Callable[[], str | None],
     logger: Callable[[str], None] = print,
+    secret_client_factory: Callable[[], Any] | None = None,
 ) -> PlatformRuntimeSettings:
-    instance_name = os.getenv("IB_GATEWAY_INSTANCE_NAME")
+    project_id = project_id_resolver()
+    account_group = resolve_account_group(os.getenv("ACCOUNT_GROUP"))
+    group_config = load_account_group_config(
+        project_id=project_id,
+        account_group=account_group,
+        raw_json=os.getenv("IB_ACCOUNT_GROUP_CONFIG_JSON"),
+        secret_name=os.getenv("IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME"),
+        secret_client_factory=secret_client_factory,
+    )
+
+    instance_name = first_non_empty(
+        group_config.ib_gateway_instance_name,
+        os.getenv("IB_GATEWAY_INSTANCE_NAME"),
+    )
     if not instance_name:
         raise EnvironmentError("IB_GATEWAY_INSTANCE_NAME is required")
 
     return PlatformRuntimeSettings(
-        project_id=project_id_resolver(),
+        project_id=project_id,
         ib_gateway_instance_name=instance_name,
-        ib_gateway_zone=os.getenv("IB_GATEWAY_ZONE", "").strip(),
-        ib_gateway_mode=resolve_ib_gateway_mode(os.getenv("IB_GATEWAY_MODE")),
-        ib_gateway_ip_mode=resolve_ib_gateway_ip_mode(os.getenv("IB_GATEWAY_IP_MODE"), logger=logger),
-        ib_client_id=int(os.getenv("IB_CLIENT_ID", "1")),
+        ib_gateway_zone=first_non_empty(
+            group_config.ib_gateway_zone,
+            os.getenv("IB_GATEWAY_ZONE", "").strip(),
+        )
+        or "",
+        ib_gateway_mode=resolve_ib_gateway_mode(
+            first_non_empty(group_config.ib_gateway_mode, os.getenv("IB_GATEWAY_MODE"))
+        ),
+        ib_gateway_ip_mode=resolve_ib_gateway_ip_mode(
+            first_non_empty(group_config.ib_gateway_ip_mode, os.getenv("IB_GATEWAY_IP_MODE")),
+            logger=logger,
+        ),
+        ib_client_id=group_config.ib_client_id
+        if group_config.ib_client_id is not None
+        else int(os.getenv("IB_CLIENT_ID", "1")),
         strategy_profile=resolve_strategy_profile(os.getenv("STRATEGY_PROFILE")),
-        account_group=resolve_account_group(os.getenv("ACCOUNT_GROUP")),
+        account_group=account_group,
+        service_name=group_config.service_name,
+        account_ids=group_config.account_ids,
         tg_token=os.getenv("TELEGRAM_TOKEN"),
         tg_chat_id=os.getenv("GLOBAL_TELEGRAM_CHAT_ID"),
         notify_lang=os.getenv("NOTIFY_LANG", "en"),
@@ -61,6 +102,117 @@ def resolve_strategy_profile(raw_value: str | None) -> str:
 def resolve_account_group(raw_value: str | None) -> str:
     value = (raw_value or DEFAULT_ACCOUNT_GROUP).strip()
     return value or DEFAULT_ACCOUNT_GROUP
+
+
+def load_account_group_config(
+    *,
+    project_id: str | None,
+    account_group: str,
+    raw_json: str | None,
+    secret_name: str | None,
+    secret_client_factory: Callable[[], Any] | None = None,
+) -> AccountGroupConfig:
+    payload = None
+    if secret_name:
+        if not project_id:
+            raise EnvironmentError(
+                "GOOGLE_CLOUD_PROJECT is required when IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME is set"
+            )
+        payload = load_secret_payload(
+            project_id,
+            secret_name,
+            secret_client_factory=secret_client_factory,
+        )
+    elif raw_json:
+        payload = raw_json
+
+    if not payload:
+        return AccountGroupConfig()
+
+    configs = parse_account_group_configs(payload)
+    if account_group not in configs:
+        available = ", ".join(sorted(configs))
+        raise ValueError(
+            f"ACCOUNT_GROUP={account_group!r} not found in account-group config; available groups: {available}"
+        )
+    return configs[account_group]
+
+
+def parse_account_group_configs(payload: str) -> dict[str, AccountGroupConfig]:
+    raw_data = json.loads(payload)
+    groups = raw_data.get("groups", raw_data) if isinstance(raw_data, dict) else None
+    if not isinstance(groups, dict):
+        raise ValueError("IB account-group config must be a JSON object or {\"groups\": {...}}")
+
+    parsed: dict[str, AccountGroupConfig] = {}
+    for group_name, group_payload in groups.items():
+        if not isinstance(group_payload, dict):
+            raise ValueError(f"Account group {group_name!r} must be a JSON object")
+        parsed[str(group_name)] = AccountGroupConfig(
+            ib_gateway_instance_name=normalize_optional_string(group_payload.get("ib_gateway_instance_name")),
+            ib_gateway_zone=normalize_optional_string(group_payload.get("ib_gateway_zone")),
+            ib_gateway_mode=normalize_optional_string(group_payload.get("ib_gateway_mode")),
+            ib_gateway_ip_mode=normalize_optional_string(group_payload.get("ib_gateway_ip_mode")),
+            ib_client_id=parse_optional_int(group_payload.get("ib_client_id")),
+            service_name=normalize_optional_string(group_payload.get("service_name")),
+            account_ids=parse_account_ids(group_payload.get("account_ids")),
+        )
+    return parsed
+
+
+def load_secret_payload(
+    project_id: str,
+    secret_name: str,
+    *,
+    secret_client_factory: Callable[[], Any] | None = None,
+) -> str:
+    if secret_client_factory is None:
+        try:
+            import google.cloud.secretmanager_v1 as secret_manager
+        except ImportError:
+            from google.cloud import secret_manager
+
+        secret_client_factory = secret_manager.SecretManagerServiceClient
+
+    client = secret_client_factory()
+    resource_name = f"projects/{project_id}/secrets/{secret_name}/versions/latest"
+    response = client.access_secret_version(request={"name": resource_name})
+    return response.payload.data.decode("UTF-8")
+
+
+def parse_account_ids(raw_value: Any) -> tuple[str, ...]:
+    if raw_value is None:
+        return ()
+    if not isinstance(raw_value, (list, tuple)):
+        raise ValueError("account_ids must be a JSON array of strings")
+    parsed = []
+    for item in raw_value:
+        value = normalize_optional_string(item)
+        if value is None:
+            continue
+        parsed.append(value)
+    return tuple(parsed)
+
+
+def parse_optional_int(raw_value: Any) -> int | None:
+    if raw_value is None or raw_value == "":
+        return None
+    return int(raw_value)
+
+
+def normalize_optional_string(raw_value: Any) -> str | None:
+    if raw_value is None:
+        return None
+    value = str(raw_value).strip()
+    return value or None
+
+
+def first_non_empty(*values: str | None) -> str | None:
+    for value in values:
+        normalized = normalize_optional_string(value)
+        if normalized is not None:
+            return normalized
+    return None
 
 
 def resolve_ib_gateway_mode(raw_value: str | None) -> str:

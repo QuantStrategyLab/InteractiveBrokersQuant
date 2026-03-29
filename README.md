@@ -108,6 +108,8 @@ Equity: $2,100.00 | Buying Power: $50.00
 | `IB_CLIENT_ID` | No | IB client ID (default: 1) |
 | `STRATEGY_PROFILE` | No | Strategy profile selector (default: `global_etf_rotation`, currently the only supported value) |
 | `ACCOUNT_GROUP` | No | Account-group marker for future multi-account deployment (default: `default`) |
+| `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | No | Secret Manager secret name for account-group config JSON. Recommended for multi-account deployment. |
+| `IB_ACCOUNT_GROUP_CONFIG_JSON` | No | Local/dev JSON fallback for account-group config. Not recommended for production Cloud Run. |
 | `TELEGRAM_TOKEN` | Yes | Telegram bot token |
 | `GLOBAL_TELEGRAM_CHAT_ID` | Yes | Telegram chat ID used by this service. |
 | `NOTIFY_LANG` | No | `en` (default) or `zh` |
@@ -126,10 +128,40 @@ IB_GATEWAY_IP_MODE=internal
 IB_CLIENT_ID=1
 STRATEGY_PROFILE=global_etf_rotation
 ACCOUNT_GROUP=default
+IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups
 NOTIFY_LANG=zh
 ```
 
 This shared-config mode is only for the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). It is not meant to become a global secret bundle for unrelated quant repos. Across multiple quant projects, the only broadly reusable runtime settings are usually `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG`.
+
+Recommended account-group config payload:
+
+```json
+{
+  "groups": {
+    "default": {
+      "ib_gateway_instance_name": "interactive-brokers-quant-instance",
+      "ib_gateway_zone": "us-central1-c",
+      "ib_gateway_mode": "paper",
+      "ib_gateway_ip_mode": "internal",
+      "ib_client_id": 1,
+      "service_name": "interactive-brokers-quant-default",
+      "account_ids": ["DU1234567"]
+    },
+    "ira": {
+      "ib_gateway_instance_name": "interactive-brokers-quant-instance",
+      "ib_gateway_zone": "us-central1-c",
+      "ib_gateway_mode": "paper",
+      "ib_gateway_ip_mode": "internal",
+      "ib_client_id": 7,
+      "service_name": "interactive-brokers-quant-ira",
+      "account_ids": ["U1234567"]
+    }
+  }
+}
+```
+
+When both direct env vars and account-group config are present, the selected `ACCOUNT_GROUP` entry overrides the direct IB connection values. Missing fields still fall back to the direct env vars.
 
 ### GitHub-managed Cloud Run env sync
 
@@ -144,6 +176,7 @@ Recommended setup:
   - `IB_CLIENT_ID`
   - `STRATEGY_PROFILE` (recommended: `global_etf_rotation`)
   - `ACCOUNT_GROUP` (recommended: `default`)
+  - `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`
 - **Repository Secrets**
   - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`
@@ -157,18 +190,19 @@ Recommended setup:
 
 On every push to `main`, the workflow updates the existing Cloud Run service with the values above and removes `IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, and `TELEGRAM_CHAT_ID`.
 
-For now, `STRATEGY_PROFILE` and `ACCOUNT_GROUP` are mainly there to shape the future platform deployment model while keeping current behavior unchanged. The current code still supports only one strategy profile and one directly configured client connection per service.
+For now, `STRATEGY_PROFILE` still only supports one strategy profile. `ACCOUNT_GROUP` now selects one account-group config entry, which can override IB connection details such as `IB_CLIENT_ID` and gateway identity while keeping the trading logic unchanged.
 
 Important:
 
 - The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
 - Here "shared config" still only means the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). `GCP_SA_KEY` and `TELEGRAM_TOKEN` remain repository-specific.
+- If `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` is set, the Cloud Run runtime needs Secret Manager access to that secret.
 
 ### Deployment unit and naming
 
 - `QuantPlatformKit` is only a shared dependency; Cloud Run still deploys `InteractiveBrokersQuant` itself.
 - Recommended Cloud Run service name: `interactive-brokers-quant`.
-- For future multi-account rollout, keep one Cloud Run service per `ACCOUNT_GROUP`.
+- For future multi-account rollout, keep one Cloud Run service per `ACCOUNT_GROUP`, and let each service select its account-group config at runtime.
 - If you later rename or move this repository, reselect the GitHub source in Cloud Build / Cloud Run trigger instead of assuming the existing source binding will update itself.
 - For the shared deployment model and trigger migration checklist, see [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md).
 
@@ -269,6 +303,8 @@ IBKR 账户
 | `IB_CLIENT_ID` | 否 | IB 连接客户端 ID (默认: 1) |
 | `STRATEGY_PROFILE` | 否 | 策略档位选择（默认: `global_etf_rotation`，当前仅支持这个值） |
 | `ACCOUNT_GROUP` | 否 | 为后续多账户部署预留的账号组标记（默认: `default`） |
+| `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | 否 | 账号组配置 JSON 在 Secret Manager 里的密钥名。多账户部署推荐使用。 |
+| `IB_ACCOUNT_GROUP_CONFIG_JSON` | 否 | 本地开发用的账号组配置 JSON fallback。不建议在生产 Cloud Run 直接使用。 |
 | `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token |
 | `GLOBAL_TELEGRAM_CHAT_ID` | 是 | 这个服务使用的 Telegram Chat ID。 |
 | `NOTIFY_LANG` | 否 | `en`(默认) 或 `zh` |
@@ -287,10 +323,40 @@ IB_GATEWAY_IP_MODE=internal
 IB_CLIENT_ID=1
 STRATEGY_PROFILE=global_etf_rotation
 ACCOUNT_GROUP=default
+IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups
 NOTIFY_LANG=zh
 ```
 
 这里说的“共享配置”只针对 **IBKR 这一组系统**，也就是 `IBKRQuant` 和 `IBKRGatewayManager` 之间共享。它不是让所有 quant 仓库都共用一套 secrets。对多个量化仓库来说，通常只有 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG` 适合做跨项目共享。
+
+推荐的账号组配置 JSON：
+
+```json
+{
+  "groups": {
+    "default": {
+      "ib_gateway_instance_name": "interactive-brokers-quant-instance",
+      "ib_gateway_zone": "us-central1-c",
+      "ib_gateway_mode": "paper",
+      "ib_gateway_ip_mode": "internal",
+      "ib_client_id": 1,
+      "service_name": "interactive-brokers-quant-default",
+      "account_ids": ["DU1234567"]
+    },
+    "ira": {
+      "ib_gateway_instance_name": "interactive-brokers-quant-instance",
+      "ib_gateway_zone": "us-central1-c",
+      "ib_gateway_mode": "paper",
+      "ib_gateway_ip_mode": "internal",
+      "ib_client_id": 7,
+      "service_name": "interactive-brokers-quant-ira",
+      "account_ids": ["U1234567"]
+    }
+  }
+}
+```
+
+如果同时配置了直写 env 和账号组配置，选中的 `ACCOUNT_GROUP` 会优先覆盖 IB 连接相关参数；缺失字段再回退到直写 env。
 
 ### GitHub 统一管理 Cloud Run 环境变量
 
@@ -305,6 +371,7 @@ NOTIFY_LANG=zh
   - `IB_CLIENT_ID`
   - `STRATEGY_PROFILE`（建议设为 `global_etf_rotation`）
   - `ACCOUNT_GROUP`（建议设为 `default`）
+  - `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`
 - **仓库级 Secrets**
   - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`
@@ -318,18 +385,19 @@ NOTIFY_LANG=zh
 
 每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里，并删除旧的 `IB_GATEWAY_HOST`、`IB_GATEWAY_PORT` 和 `TELEGRAM_CHAT_ID`。
 
-当前这一步里，`STRATEGY_PROFILE` 和 `ACCOUNT_GROUP` 主要是先把平台化运行模型立起来，对外行为保持不变。现阶段代码仍然只有一个策略档位，每个服务仍然只直连一套显式配置的 IB 连接。
+当前这一步里，`STRATEGY_PROFILE` 仍然只有一个可用值；`ACCOUNT_GROUP` 则已经可以选中一份账号组配置，并覆盖 `IB_CLIENT_ID`、gateway 标识等连接参数，但交易逻辑本身保持不变。
 
 注意：
 
 - 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
 - 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY` 和 `TELEGRAM_TOKEN` 依然是这个仓库自己的 secrets，不建议提升成所有 quant 共用的全局 secret。
+- 如果设置了 `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`，Cloud Run 运行时还需要有对应 Secret 的访问权限。
 
 ### 部署单元和命名建议
 
 - `QuantPlatformKit` 只是共享依赖，不单独部署；Cloud Run 继续只部署 `InteractiveBrokersQuant`。
 - 推荐 Cloud Run 服务名：`interactive-brokers-quant`。
-- 后续如果扩到多账户，建议按 `ACCOUNT_GROUP` 拆成多个 Cloud Run 服务。
+- 后续如果扩到多账户，建议按 `ACCOUNT_GROUP` 拆成多个 Cloud Run 服务，并让每个服务在运行时选中自己的账号组配置。
 - 如果后面改 GitHub 仓库名或再次迁组织，Cloud Build / Cloud Run 里的 GitHub 来源需要重新选择，不要假设旧绑定会自动跟过去。
 - 统一部署模型和触发器迁移清单见 [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md)。
 

@@ -19,6 +19,8 @@ def strategy_module_factory(monkeypatch):
             "IB_GATEWAY_ZONE": None,
             "IB_GATEWAY_MODE": "live",
             "IB_CLIENT_ID": "1",
+            "IB_ACCOUNT_GROUP_CONFIG_JSON": None,
+            "IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME": None,
             "GLOBAL_TELEGRAM_CHAT_ID": None,
         }
         defaults.update(env_overrides)

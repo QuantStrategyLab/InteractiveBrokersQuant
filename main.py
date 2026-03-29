@@ -16,6 +16,7 @@ try:
 except ImportError:
     compute_v1 = None
 
+from notifications.telegram import build_translator, send_telegram_message
 from quant_platform_kit.common.models import OrderIntent
 from quant_platform_kit.ibkr import (
     connect_ib as ibkr_connect_ib,
@@ -164,79 +165,17 @@ HIST_DATA_PACING_SEC = 0.5
 
 SEPARATOR = "━━━━━━━━━━━━━━━━━━"
 
-# ---------------------------------------------------------------------------
-# i18n
-# ---------------------------------------------------------------------------
-I18N = {
-    "zh": {
-        "rebalance_title":  "🔔 【调仓指令】",
-        "heartbeat_title":  "💓 【心跳检测】",
-        "error_title":      "🚨 【策略异常】",
-        "canary_title":     "🐤 【金丝雀检查】",
-        "equity":           "净值",
-        "buying_power":     "购买力",
-        "signal_label":     "信号",
-        "no_trades":        "✅ 无需调仓",
-        "emergency":        "🛡️ 金丝雀应急: {n_bad}/4 坏, 全部转入 {safe}",
-        "quarterly":        "📊 季度调仓: Top {n} 轮动",
-        "daily_check":      "📋 每日检查: 金丝雀正常, 持仓不变",
-        "hold":             "💎 持仓不变",
-        "market_sell":      "📉 [市价卖出] {symbol}: {qty}股",
-        "limit_buy":        "📈 [限价买入] {symbol}: {qty}股 @ ${price}",
-        "submitted":        "已下发 (ID: {order_id})",
-        "failed":           "失败: {reason}",
-        "order_filled":     "✅ 订单成交 | {symbol} {side} {qty}股 均价 ${price} (ID: {order_id})",
-        "order_partial":    "⚠️ 部分成交 | {symbol} {side} {executed}/{qty}股 均价 ${price} (ID: {order_id})",
-        "order_rejected":   "❌ 订单异常 | {symbol} {side} {qty}股 状态: {status} (ID: {order_id})",
-    },
-    "en": {
-        "rebalance_title":  "🔔 【Trade Execution Report】",
-        "heartbeat_title":  "💓 【Heartbeat】",
-        "error_title":      "🚨 【Strategy Error】",
-        "canary_title":     "🐤 【Canary Check】",
-        "equity":           "Equity",
-        "buying_power":     "Buying Power",
-        "signal_label":     "Signal",
-        "no_trades":        "✅ No rebalance needed",
-        "emergency":        "🛡️ Canary Emergency: {n_bad}/4 bad, rotating to {safe}",
-        "quarterly":        "📊 Quarterly Rebalance: Top {n} rotation",
-        "daily_check":      "📋 Daily Check: canary OK, holding",
-        "hold":             "💎 Hold positions",
-        "market_sell":      "📉 [Market sell] {symbol}: {qty} shares",
-        "limit_buy":        "📈 [Limit buy] {symbol}: {qty} shares @ ${price}",
-        "submitted":        "submitted (ID: {order_id})",
-        "failed":           "failed: {reason}",
-        "order_filled":     "✅ Filled | {symbol} {side} {qty} shares avg ${price} (ID: {order_id})",
-        "order_partial":    "⚠️ Partial | {symbol} {side} {executed}/{qty} shares avg ${price} (ID: {order_id})",
-        "order_rejected":   "❌ Rejected | {symbol} {side} {qty} shares status: {status} (ID: {order_id})",
-    },
-}
-
-
 def t(key, **kwargs):
-    lang = NOTIFY_LANG if NOTIFY_LANG in I18N else "en"
-    template = I18N[lang].get(key, key)
-    return template.format(**kwargs) if kwargs else template
+    return build_translator(NOTIFY_LANG)(key, **kwargs)
 
 
 def send_tg_message(message):
-    if not TG_TOKEN or not TG_CHAT_ID:
-        return
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    try:
-        print(f"TG:\n{message}", flush=True)
-        response = requests.post(
-            url,
-            json={"chat_id": TG_CHAT_ID, "text": message},
-            timeout=10,
-        )
-        if not 200 <= response.status_code < 300:
-            print(
-                f"Telegram send failed with status {response.status_code}: {response.text}",
-                flush=True,
-            )
-    except Exception as e:
-        print(f"Telegram send failed: {e}", flush=True)
+    return send_telegram_message(
+        message,
+        token=TG_TOKEN,
+        chat_id=TG_CHAT_ID,
+        requests_module=requests,
+    )
 
 
 def connect_ib():

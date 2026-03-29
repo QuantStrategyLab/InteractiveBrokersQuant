@@ -12,13 +12,10 @@ jobs:
       ENABLE_GITHUB_ENV_SYNC: ${{ vars.ENABLE_GITHUB_ENV_SYNC }}
       CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
       CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
-      IB_CLIENT_ID: ${{ vars.IB_CLIENT_ID }}
       STRATEGY_PROFILE: ${{ vars.STRATEGY_PROFILE }}
       ACCOUNT_GROUP: ${{ vars.ACCOUNT_GROUP }}
       IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME: ${{ vars.IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME }}
-      IB_GATEWAY_INSTANCE_NAME: ${{ vars.IB_GATEWAY_INSTANCE_NAME }}
       IB_GATEWAY_ZONE: ${{ vars.IB_GATEWAY_ZONE }}
-      IB_GATEWAY_MODE: ${{ vars.IB_GATEWAY_MODE }}
       IB_GATEWAY_IP_MODE: ${{ vars.IB_GATEWAY_IP_MODE }}
       GLOBAL_TELEGRAM_CHAT_ID: ${{ vars.GLOBAL_TELEGRAM_CHAT_ID }}
       NOTIFY_LANG: ${{ vars.NOTIFY_LANG }}
@@ -41,12 +38,7 @@ jobs:
             CLOUD_RUN_SERVICE
             STRATEGY_PROFILE
             ACCOUNT_GROUP
-            IB_CLIENT_ID
             IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME
-            IB_GATEWAY_INSTANCE_NAME
-            IB_GATEWAY_ZONE
-            IB_GATEWAY_MODE
-            IB_GATEWAY_IP_MODE
             GLOBAL_TELEGRAM_CHAT_ID
             NOTIFY_LANG
             GCP_SA_KEY
@@ -88,7 +80,37 @@ jobs:
         run: |
           set -euo pipefail
 
+          env_pairs=(
+            "TELEGRAM_TOKEN=${TELEGRAM_TOKEN}"
+            "GLOBAL_TELEGRAM_CHAT_ID=${GLOBAL_TELEGRAM_CHAT_ID}"
+            "NOTIFY_LANG=${NOTIFY_LANG}"
+            "STRATEGY_PROFILE=${STRATEGY_PROFILE}"
+            "ACCOUNT_GROUP=${ACCOUNT_GROUP}"
+            "IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=${IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME}"
+          )
+
+          remove_env_vars=(
+            "IB_GATEWAY_HOST"
+            "IB_GATEWAY_PORT"
+            "TELEGRAM_CHAT_ID"
+            "IB_CLIENT_ID"
+            "IB_GATEWAY_INSTANCE_NAME"
+            "IB_GATEWAY_MODE"
+          )
+
+          if [ -n "${IB_GATEWAY_ZONE:-}" ]; then
+            env_pairs+=("IB_GATEWAY_ZONE=${IB_GATEWAY_ZONE}")
+          else
+            remove_env_vars+=("IB_GATEWAY_ZONE")
+          fi
+
+          if [ -n "${IB_GATEWAY_IP_MODE:-}" ]; then
+            env_pairs+=("IB_GATEWAY_IP_MODE=${IB_GATEWAY_IP_MODE}")
+          else
+            remove_env_vars+=("IB_GATEWAY_IP_MODE")
+          fi
+
           gcloud run services update "${CLOUD_RUN_SERVICE}" \
             --region "${CLOUD_RUN_REGION}" \
-            --remove-env-vars "IB_GATEWAY_HOST,IB_GATEWAY_PORT,TELEGRAM_CHAT_ID" \
-            --update-env-vars "TELEGRAM_TOKEN=${TELEGRAM_TOKEN},GLOBAL_TELEGRAM_CHAT_ID=${GLOBAL_TELEGRAM_CHAT_ID},NOTIFY_LANG=${NOTIFY_LANG},IB_GATEWAY_INSTANCE_NAME=${IB_GATEWAY_INSTANCE_NAME},IB_GATEWAY_ZONE=${IB_GATEWAY_ZONE},IB_GATEWAY_MODE=${IB_GATEWAY_MODE},IB_GATEWAY_IP_MODE=${IB_GATEWAY_IP_MODE},IB_CLIENT_ID=${IB_CLIENT_ID},STRATEGY_PROFILE=${STRATEGY_PROFILE},ACCOUNT_GROUP=${ACCOUNT_GROUP},IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=${IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME}"
+            --remove-env-vars "$(IFS=,; echo "${remove_env_vars[*]}")" \
+            --update-env-vars "$(IFS=,; echo "${env_pairs[*]}")"

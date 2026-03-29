@@ -1,0 +1,15 @@
+{
+  "groups": {
+    "default": {
+      "ib_gateway_instance_name": "interactive-brokers-quant-instance",
+      "ib_gateway_zone": "us-central1-c",
+      "ib_gateway_mode": "paper",
+      "ib_gateway_ip_mode": "internal",
+      "ib_client_id": 1,
+      "service_name": "interactive-brokers-quant",
+      "account_ids": [
+        "DU1234567"
+      ]
+    }
+  }
+}

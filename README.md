@@ -97,39 +97,49 @@ Equity: $2,100.00 | Buying Power: $50.00
 ✅ No rebalance needed
 ```
 
-### Environment Variables
+### Runtime env vars
+
+The selected `ACCOUNT_GROUP` is now the runtime identity. Keep broker-specific identity in the account-group config payload, not in Cloud Run env vars.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `IB_GATEWAY_INSTANCE_NAME` | Yes | GCE instance name for the IB gateway. |
-| `IB_GATEWAY_ZONE` | Yes | GCE zone (e.g. `us-central1-a`) |
-| `IB_GATEWAY_IP_MODE` | No | `internal` (default) or `external`; for Cloud Run, `internal` with Direct VPC egress is recommended |
-| `IB_GATEWAY_MODE` | Yes | Required mode flag. `live` maps to port `4001`, `paper` maps to port `4002`. |
-| `IB_CLIENT_ID` | No | IB client ID (default: 1) |
+| `IB_GATEWAY_ZONE` | Optional fallback | GCE zone (for example `us-central1-a`). Recommended to keep in the selected account-group entry; this env var is only a transition fallback. |
+| `IB_GATEWAY_IP_MODE` | Optional fallback | `internal` (default) or `external`. Recommended to keep in the selected account-group entry; this env var is only a transition fallback. |
 | `STRATEGY_PROFILE` | Yes | Strategy profile selector. Current required value: `global_etf_rotation` |
 | `ACCOUNT_GROUP` | Yes | Account-group selector. No default fallback. |
-| `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Yes for Cloud Run | Secret Manager secret name for account-group config JSON. Recommended for multi-account deployment. |
+| `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Yes for Cloud Run | Secret Manager secret name for account-group config JSON. Recommended production source. |
 | `IB_ACCOUNT_GROUP_CONFIG_JSON` | No | Local/dev JSON fallback for account-group config. Not recommended for production Cloud Run. |
 | `TELEGRAM_TOKEN` | Yes | Telegram bot token |
 | `GLOBAL_TELEGRAM_CHAT_ID` | Yes | Telegram chat ID used by this service. |
 | `NOTIFY_LANG` | No | `en` (default) or `zh` |
 
-If you use instance-name resolution with `IB_GATEWAY_ZONE`, the service account needs `roles/compute.viewer`. The recommended deployment is Cloud Run with Direct VPC egress to the GCE private IP. Set `IB_GATEWAY_IP_MODE=external` only if you intentionally expose the gateway over a public IP and have locked down API access and firewall rules.
+The selected account-group entry must provide at least:
+
+- `ib_gateway_instance_name`
+- `ib_gateway_mode`
+- `ib_client_id`
+
+For the recommended Cloud Run deployment, also include:
+
+- `ib_gateway_zone`
+- `ib_gateway_ip_mode` (or let it default to `internal`)
+
+If you use instance-name resolution with `ib_gateway_zone`, the Cloud Run runtime service account needs `roles/compute.viewer`. If you load the payload from Secret Manager, the same runtime service account also needs `roles/secretmanager.secretAccessor` on `ibkr-account-groups`.
 
 **Recommended shared-config mode**
 
-If you deploy both `IBKRQuant` and `IBKRGatewayManager` from the same GitHub-managed config, keep these shared values aligned:
+For the current first rollout, keep GitHub / Cloud Run focused on service-level values:
 
 ```bash
-IB_GATEWAY_INSTANCE_NAME=interactive-brokers-quant-instance
-IB_GATEWAY_ZONE=us-central1-c
-IB_GATEWAY_MODE=paper
-IB_GATEWAY_IP_MODE=internal
-IB_CLIENT_ID=1
 STRATEGY_PROFILE=global_etf_rotation
 ACCOUNT_GROUP=default
 IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups
+GLOBAL_TELEGRAM_CHAT_ID=<telegram-chat-id>
 NOTIFY_LANG=zh
+
+# Optional transition fallback only:
+IB_GATEWAY_ZONE=us-central1-c
+IB_GATEWAY_IP_MODE=internal
 ```
 
 This shared-config mode is only for the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). It is not meant to become a global secret bundle for unrelated quant repos. Across multiple quant projects, the only broadly reusable runtime settings are usually `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG`.
@@ -145,7 +155,7 @@ Recommended account-group config payload:
       "ib_gateway_mode": "paper",
       "ib_gateway_ip_mode": "internal",
       "ib_client_id": 1,
-      "service_name": "interactive-brokers-quant-default",
+      "service_name": "interactive-brokers-quant",
       "account_ids": ["DU1234567"]
     },
     "ira": {
@@ -160,6 +170,8 @@ Recommended account-group config payload:
   }
 }
 ```
+
+See [`docs/examples/ibkr-account-groups.default.json`](docs/examples/ibkr-account-groups.default.json) for a ready-to-edit starter example, and [`docs/ibkr_runtime_rollout.md`](docs/ibkr_runtime_rollout.md) for the exact rollout steps to get `ACCOUNT_GROUP=default` running.
 
 Current behavior is fail-fast:
 
@@ -178,22 +190,19 @@ Recommended setup:
   - `ENABLE_GITHUB_ENV_SYNC` = `true`
   - `CLOUD_RUN_REGION`
   - `CLOUD_RUN_SERVICE`
-  - `IB_CLIENT_ID`
   - `STRATEGY_PROFILE` (recommended: `global_etf_rotation`)
   - `ACCOUNT_GROUP` (recommended: `default`)
   - `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`
+  - `GLOBAL_TELEGRAM_CHAT_ID`
+  - `NOTIFY_LANG`
 - **Repository Secrets**
   - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`
-- **Shared Variables already supported**
-  - `IB_GATEWAY_INSTANCE_NAME`
+- **Optional transition Variables**
   - `IB_GATEWAY_ZONE`
-  - `IB_GATEWAY_MODE`
   - `IB_GATEWAY_IP_MODE`
-  - `GLOBAL_TELEGRAM_CHAT_ID`
-  - `NOTIFY_LANG`
 
-On every push to `main`, the workflow updates the existing Cloud Run service with the values above and removes `IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, and `TELEGRAM_CHAT_ID`.
+On every push to `main`, the workflow updates the existing Cloud Run service with the values above and removes legacy env vars that should now live in the account-group config (`IB_CLIENT_ID`, `IB_GATEWAY_INSTANCE_NAME`, `IB_GATEWAY_MODE`) plus the older transport vars (`IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, `TELEGRAM_CHAT_ID`). If `IB_GATEWAY_ZONE` or `IB_GATEWAY_IP_MODE` are blank in GitHub, the workflow also removes them from Cloud Run to avoid drift.
 
 For now, `STRATEGY_PROFILE` still only supports one strategy profile. `ACCOUNT_GROUP` now selects one account-group config entry, and the service fails fast if that runtime identity is incomplete.
 
@@ -202,6 +211,7 @@ Important:
 - The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
 - Here "shared config" still only means the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). `GCP_SA_KEY` and `TELEGRAM_TOKEN` remain repository-specific.
 - If `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` is set, the Cloud Run runtime needs Secret Manager access to that secret.
+- `GCP_SA_KEY` belongs to the GitHub Actions deploy identity, not to the Cloud Run runtime service account.
 
 ### Deployment unit and naming
 
@@ -215,7 +225,7 @@ Important:
 
 1. **GCE**: Set up IB Gateway (paper or live) on a GCE instance. Ensure API access is enabled, remote clients are allowed when needed, and use `4001` for `live` or `4002` for `paper`.
 2. **VPC / Subnet**: Put Cloud Run and GCE in the same VPC. For cleaner firewall rules, reserve a dedicated subnet for Cloud Run Direct VPC egress.
-3. **Cloud Run**: Deploy or update this Flask app with Direct VPC egress. Use `IB_GATEWAY_INSTANCE_NAME + IB_GATEWAY_MODE`, and keep `IB_GATEWAY_ZONE` and `IB_GATEWAY_IP_MODE=internal`.
+3. **Cloud Run**: Deploy or update this Flask app with Direct VPC egress. Set `STRATEGY_PROFILE`, `ACCOUNT_GROUP`, and `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`. Keep `IB_GATEWAY_ZONE` / `IB_GATEWAY_IP_MODE` only as transition fallbacks if the selected account-group payload does not already contain them. The runtime service account needs `roles/secretmanager.secretAccessor` and, for instance-name resolution, `roles/compute.viewer`.
 4. **Firewall**: Allow TCP `4001` (`live`) or `4002` (`paper`) from the Cloud Run egress subnet CIDR to the GCE instance.
 5. **Cloud Scheduler**: Create a job: `45 15 * * 1-5` (America/New_York), POST to the Cloud Run URL. The code handles market calendar checks internally.
 6. **Optional public-IP mode**: Only if you cannot use VPC, set `IB_GATEWAY_IP_MODE=external`, expose the GCE public IP deliberately, and restrict source ranges tightly. This is not the default path.
@@ -223,13 +233,14 @@ Important:
 Example deploy/update command:
 
 ```bash
-gcloud run deploy ibkr-quant \
+gcloud run deploy interactive-brokers-quant \
   --source . \
   --region us-central1 \
+  --service-account interactive-brokers-quant-runtime@PROJECT_ID.iam.gserviceaccount.com \
   --network default \
   --subnet cloudrun-direct-egress \
   --vpc-egress private-ranges-only \
-  --set-env-vars IB_GATEWAY_INSTANCE_NAME=ib-gateway,IB_GATEWAY_ZONE=us-central1-a,IB_GATEWAY_MODE=paper,IB_GATEWAY_IP_MODE=internal
+  --set-env-vars STRATEGY_PROFILE=global_etf_rotation,ACCOUNT_GROUP=default,IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups,GLOBAL_TELEGRAM_CHAT_ID=123456789,NOTIFY_LANG=zh
 ```
 
 If the service already exists and your CI only updates source/image, you can patch networking separately:
@@ -297,39 +308,49 @@ GCE (IB Gateway 常驻)
 IBKR 账户
 ```
 
-### 环境变量
+### 运行时环境变量
+
+现在 `ACCOUNT_GROUP` 就是运行身份选择器。broker 侧身份信息应该放在账号组配置 JSON 里，不要继续把这部分主配置塞回 Cloud Run env。
 
 | 变量 | 必需 | 说明 |
 |------|------|------|
-| `IB_GATEWAY_INSTANCE_NAME` | 是 | IB Gateway 所在 GCE 实例名。 |
-| `IB_GATEWAY_ZONE` | 是 | GCE zone (如 `us-central1-a`) |
-| `IB_GATEWAY_IP_MODE` | 否 | `internal`（默认）或 `external`；Cloud Run 推荐配合 Direct VPC egress 使用 `internal` |
-| `IB_GATEWAY_MODE` | 是 | 必需。`live` 会映射到 `4001`，`paper` 会映射到 `4002`。 |
-| `IB_CLIENT_ID` | 否 | IB 连接客户端 ID (默认: 1) |
+| `IB_GATEWAY_ZONE` | 可选过渡项 | GCE zone（如 `us-central1-a`）。推荐直接放进选中的账号组配置里；这里只保留过渡 fallback。 |
+| `IB_GATEWAY_IP_MODE` | 可选过渡项 | `internal`（默认）或 `external`。推荐直接放进选中的账号组配置里；这里只保留过渡 fallback。 |
 | `STRATEGY_PROFILE` | 是 | 策略档位选择。当前必填值：`global_etf_rotation` |
 | `ACCOUNT_GROUP` | 是 | 账号组选择器，不再提供默认回退。 |
-| `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Cloud Run 建议必填 | 账号组配置 JSON 在 Secret Manager 里的密钥名。多账户部署推荐使用。 |
+| `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` | Cloud Run 建议必填 | 账号组配置 JSON 在 Secret Manager 里的密钥名。生产环境推荐使用。 |
 | `IB_ACCOUNT_GROUP_CONFIG_JSON` | 否 | 本地开发用的账号组配置 JSON fallback。不建议在生产 Cloud Run 直接使用。 |
 | `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token |
 | `GLOBAL_TELEGRAM_CHAT_ID` | 是 | 这个服务使用的 Telegram Chat ID。 |
-| `NOTIFY_LANG` | 否 | `en`(默认) 或 `zh` |
+| `NOTIFY_LANG` | 否 | `en`（默认）或 `zh` |
 
-如果你配了 `IB_GATEWAY_ZONE` 让程序通过实例名解析内网 IP，Cloud Run service account 需要 `roles/compute.viewer` 权限。推荐做法是 Cloud Run 通过 Direct VPC egress 访问 GCE 内网地址。只有在你明确要走公网暴露的 GCE 时，才设置 `IB_GATEWAY_IP_MODE=external`。
+选中的账号组配置里，至少要有：
+
+- `ib_gateway_instance_name`
+- `ib_gateway_mode`
+- `ib_client_id`
+
+按当前推荐的 Cloud Run 部署方式，最好再一起放上：
+
+- `ib_gateway_zone`
+- `ib_gateway_ip_mode`（或者直接走默认 `internal`）
+
+如果你配置了 `ib_gateway_zone` 让程序通过实例名解析内网 IP，Cloud Run runtime service account 需要 `roles/compute.viewer`。如果账号组配置来源是 Secret Manager，同一个 runtime service account 还需要对 `ibkr-account-groups` 具备 `roles/secretmanager.secretAccessor`。
 
 **推荐的共享配置模式**
 
-如果你和现在这套部署一样，希望 `IBKRQuant` 和 `IBKRGatewayManager` 共用一套 GitHub 配置，建议统一维护下面这些值：
+当前第一步，建议让 GitHub / Cloud Run 只维护服务级变量：
 
 ```bash
-IB_GATEWAY_INSTANCE_NAME=interactive-brokers-quant-instance
-IB_GATEWAY_ZONE=us-central1-c
-IB_GATEWAY_MODE=paper
-IB_GATEWAY_IP_MODE=internal
-IB_CLIENT_ID=1
 STRATEGY_PROFILE=global_etf_rotation
 ACCOUNT_GROUP=default
 IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups
+GLOBAL_TELEGRAM_CHAT_ID=<telegram-chat-id>
 NOTIFY_LANG=zh
+
+# 仅作为过渡 fallback：
+IB_GATEWAY_ZONE=us-central1-c
+IB_GATEWAY_IP_MODE=internal
 ```
 
 这里说的“共享配置”只针对 **IBKR 这一组系统**，也就是 `IBKRQuant` 和 `IBKRGatewayManager` 之间共享。它不是让所有 quant 仓库都共用一套 secrets。对多个量化仓库来说，通常只有 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG` 适合做跨项目共享。
@@ -345,7 +366,7 @@ NOTIFY_LANG=zh
       "ib_gateway_mode": "paper",
       "ib_gateway_ip_mode": "internal",
       "ib_client_id": 1,
-      "service_name": "interactive-brokers-quant-default",
+      "service_name": "interactive-brokers-quant",
       "account_ids": ["DU1234567"]
     },
     "ira": {
@@ -360,6 +381,8 @@ NOTIFY_LANG=zh
   }
 }
 ```
+
+仓库里也提供了一个可以直接改的默认样例：[`docs/examples/ibkr-account-groups.default.json`](docs/examples/ibkr-account-groups.default.json)。如果你要按 `ACCOUNT_GROUP=default` 先落地，直接看 [`docs/ibkr_runtime_rollout.md`](docs/ibkr_runtime_rollout.md)。
 
 当前行为改成了 fail-fast：
 
@@ -378,22 +401,19 @@ NOTIFY_LANG=zh
   - `ENABLE_GITHUB_ENV_SYNC` = `true`
   - `CLOUD_RUN_REGION`
   - `CLOUD_RUN_SERVICE`
-  - `IB_CLIENT_ID`
   - `STRATEGY_PROFILE`（建议设为 `global_etf_rotation`）
   - `ACCOUNT_GROUP`（建议设为 `default`）
   - `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`
+  - `GLOBAL_TELEGRAM_CHAT_ID`
+  - `NOTIFY_LANG`
 - **仓库级 Secrets**
   - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`
-- **已支持的共享 Variables**
-  - `IB_GATEWAY_INSTANCE_NAME`
+- **可选过渡 Variables**
   - `IB_GATEWAY_ZONE`
-  - `IB_GATEWAY_MODE`
   - `IB_GATEWAY_IP_MODE`
-  - `GLOBAL_TELEGRAM_CHAT_ID`
-  - `NOTIFY_LANG`
 
-每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里，并删除旧的 `IB_GATEWAY_HOST`、`IB_GATEWAY_PORT` 和 `TELEGRAM_CHAT_ID`。
+每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里，并清掉已经转移到账号组配置里的旧 env（`IB_CLIENT_ID`、`IB_GATEWAY_INSTANCE_NAME`、`IB_GATEWAY_MODE`）以及更早的传输层 env（`IB_GATEWAY_HOST`、`IB_GATEWAY_PORT`、`TELEGRAM_CHAT_ID`）。如果 GitHub 里没有配置 `IB_GATEWAY_ZONE` 或 `IB_GATEWAY_IP_MODE`，workflow 也会把 Cloud Run 上这两个旧值一起删除，避免双配置源漂移。
 
 当前这一步里，`STRATEGY_PROFILE` 仍然只有一个可用值；`ACCOUNT_GROUP` 已经变成严格必填，并会选中一份账号组配置。只要运行身份不完整，服务就会直接失败，不再静默回退。
 
@@ -402,6 +422,7 @@ NOTIFY_LANG=zh
 - 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
 - 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY` 和 `TELEGRAM_TOKEN` 依然是这个仓库自己的 secrets，不建议提升成所有 quant 共用的全局 secret。
 - 如果设置了 `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`，Cloud Run 运行时还需要有对应 Secret 的访问权限。
+- `GCP_SA_KEY` 对应的是 GitHub Actions 的部署身份，不是 Cloud Run runtime service account。
 
 ### 部署单元和命名建议
 
@@ -415,7 +436,7 @@ NOTIFY_LANG=zh
 
 1. **GCE**: 部署 IB Gateway（模拟或实盘），确认 API 已开启、需要远程连接时已允许非 localhost 客户端，并确认 `live` 使用 `4001`、`paper` 使用 `4002`。
 2. **VPC / 子网**: 让 Cloud Run 和 GCE 处于同一个 VPC。为了让防火墙规则更干净，建议给 Cloud Run Direct VPC egress 单独准备一个子网。
-3. **Cloud Run**: 部署此 Flask 应用时启用 Direct VPC egress。使用 `IB_GATEWAY_INSTANCE_NAME + IB_GATEWAY_MODE`，并保留 `IB_GATEWAY_ZONE` 和 `IB_GATEWAY_IP_MODE=internal`。Service account 需要 `roles/compute.viewer` 权限。
+3. **Cloud Run**: 部署此 Flask 应用时启用 Direct VPC egress。设置 `STRATEGY_PROFILE`、`ACCOUNT_GROUP`、`IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`；只有在账号组配置里还没放 `ib_gateway_zone` / `ib_gateway_ip_mode` 时，才临时保留 `IB_GATEWAY_ZONE` / `IB_GATEWAY_IP_MODE` 作为过渡 fallback。runtime service account 需要 `roles/secretmanager.secretAccessor`，若走实例名解析，还需要 `roles/compute.viewer`。
 4. **防火墙**: 只允许 Cloud Run 出口子网访问 GCE 的 `TCP 4001`（`live`）或 `TCP 4002`（`paper`）。
 5. **Cloud Scheduler**: 创建定时任务 `45 15 * * 1-5`（America/New_York 时区），POST 到 Cloud Run URL。代码内部处理交易日判断。
 6. **可选公网模式**: 只有在不能走 VPC 时，才设置 `IB_GATEWAY_IP_MODE=external`，并且要明确开放 GCE 公网 IP，同时严格限制来源 IP 和防火墙规则。
@@ -423,13 +444,14 @@ NOTIFY_LANG=zh
 示例部署命令：
 
 ```bash
-gcloud run deploy ibkr-quant \
+gcloud run deploy interactive-brokers-quant \
   --source . \
   --region us-central1 \
+  --service-account interactive-brokers-quant-runtime@PROJECT_ID.iam.gserviceaccount.com \
   --network default \
   --subnet cloudrun-direct-egress \
   --vpc-egress private-ranges-only \
-  --set-env-vars IB_GATEWAY_INSTANCE_NAME=ib-gateway,IB_GATEWAY_ZONE=us-central1-a,IB_GATEWAY_MODE=paper,IB_GATEWAY_IP_MODE=internal
+  --set-env-vars STRATEGY_PROFILE=global_etf_rotation,ACCOUNT_GROUP=default,IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups,GLOBAL_TELEGRAM_CHAT_ID=123456789,NOTIFY_LANG=zh
 ```
 
 如果服务已经存在，而你们的 CI 只是更新代码/镜像，可以单独补一次网络配置：

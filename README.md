@@ -106,6 +106,8 @@ Equity: $2,100.00 | Buying Power: $50.00
 | `IB_GATEWAY_IP_MODE` | No | `internal` (default) or `external`; for Cloud Run, `internal` with Direct VPC egress is recommended |
 | `IB_GATEWAY_MODE` | Yes | Required mode flag. `live` maps to port `4001`, `paper` maps to port `4002`. |
 | `IB_CLIENT_ID` | No | IB client ID (default: 1) |
+| `STRATEGY_PROFILE` | No | Strategy profile selector (default: `global_etf_rotation`, currently the only supported value) |
+| `ACCOUNT_GROUP` | No | Account-group marker for future multi-account deployment (default: `default`) |
 | `TELEGRAM_TOKEN` | Yes | Telegram bot token |
 | `GLOBAL_TELEGRAM_CHAT_ID` | Yes | Telegram chat ID used by this service. |
 | `NOTIFY_LANG` | No | `en` (default) or `zh` |
@@ -122,6 +124,8 @@ IB_GATEWAY_ZONE=us-central1-c
 IB_GATEWAY_MODE=paper
 IB_GATEWAY_IP_MODE=internal
 IB_CLIENT_ID=1
+STRATEGY_PROFILE=global_etf_rotation
+ACCOUNT_GROUP=default
 NOTIFY_LANG=zh
 ```
 
@@ -138,6 +142,8 @@ Recommended setup:
   - `CLOUD_RUN_REGION`
   - `CLOUD_RUN_SERVICE`
   - `IB_CLIENT_ID`
+  - `STRATEGY_PROFILE` (recommended: `global_etf_rotation`)
+  - `ACCOUNT_GROUP` (recommended: `default`)
 - **Repository Secrets**
   - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`
@@ -151,6 +157,8 @@ Recommended setup:
 
 On every push to `main`, the workflow updates the existing Cloud Run service with the values above and removes `IB_GATEWAY_HOST`, `IB_GATEWAY_PORT`, and `TELEGRAM_CHAT_ID`.
 
+For now, `STRATEGY_PROFILE` and `ACCOUNT_GROUP` are mainly there to shape the future platform deployment model while keeping current behavior unchanged. The current code still supports only one strategy profile and one directly configured client connection per service.
+
 Important:
 
 - The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
@@ -160,6 +168,7 @@ Important:
 
 - `QuantPlatformKit` is only a shared dependency; Cloud Run still deploys `InteractiveBrokersQuant` itself.
 - Recommended Cloud Run service name: `interactive-brokers-quant`.
+- For future multi-account rollout, keep one Cloud Run service per `ACCOUNT_GROUP`.
 - If you later rename or move this repository, reselect the GitHub source in Cloud Build / Cloud Run trigger instead of assuming the existing source binding will update itself.
 - For the shared deployment model and trigger migration checklist, see [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md).
 
@@ -258,6 +267,8 @@ IBKR 账户
 | `IB_GATEWAY_IP_MODE` | 否 | `internal`（默认）或 `external`；Cloud Run 推荐配合 Direct VPC egress 使用 `internal` |
 | `IB_GATEWAY_MODE` | 是 | 必需。`live` 会映射到 `4001`，`paper` 会映射到 `4002`。 |
 | `IB_CLIENT_ID` | 否 | IB 连接客户端 ID (默认: 1) |
+| `STRATEGY_PROFILE` | 否 | 策略档位选择（默认: `global_etf_rotation`，当前仅支持这个值） |
+| `ACCOUNT_GROUP` | 否 | 为后续多账户部署预留的账号组标记（默认: `default`） |
 | `TELEGRAM_TOKEN` | 是 | Telegram 机器人 Token |
 | `GLOBAL_TELEGRAM_CHAT_ID` | 是 | 这个服务使用的 Telegram Chat ID。 |
 | `NOTIFY_LANG` | 否 | `en`(默认) 或 `zh` |
@@ -274,6 +285,8 @@ IB_GATEWAY_ZONE=us-central1-c
 IB_GATEWAY_MODE=paper
 IB_GATEWAY_IP_MODE=internal
 IB_CLIENT_ID=1
+STRATEGY_PROFILE=global_etf_rotation
+ACCOUNT_GROUP=default
 NOTIFY_LANG=zh
 ```
 
@@ -290,6 +303,8 @@ NOTIFY_LANG=zh
   - `CLOUD_RUN_REGION`
   - `CLOUD_RUN_SERVICE`
   - `IB_CLIENT_ID`
+  - `STRATEGY_PROFILE`（建议设为 `global_etf_rotation`）
+  - `ACCOUNT_GROUP`（建议设为 `default`）
 - **仓库级 Secrets**
   - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`
@@ -303,6 +318,8 @@ NOTIFY_LANG=zh
 
 每次 push 到 `main` 时，这个 workflow 会把上面这些值同步到现有 Cloud Run 服务里，并删除旧的 `IB_GATEWAY_HOST`、`IB_GATEWAY_PORT` 和 `TELEGRAM_CHAT_ID`。
 
+当前这一步里，`STRATEGY_PROFILE` 和 `ACCOUNT_GROUP` 主要是先把平台化运行模型立起来，对外行为保持不变。现阶段代码仍然只有一个策略档位，每个服务仍然只直连一套显式配置的 IB 连接。
+
 注意：
 
 - 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
@@ -312,6 +329,7 @@ NOTIFY_LANG=zh
 
 - `QuantPlatformKit` 只是共享依赖，不单独部署；Cloud Run 继续只部署 `InteractiveBrokersQuant`。
 - 推荐 Cloud Run 服务名：`interactive-brokers-quant`。
+- 后续如果扩到多账户，建议按 `ACCOUNT_GROUP` 拆成多个 Cloud Run 服务。
 - 如果后面改 GitHub 仓库名或再次迁组织，Cloud Build / Cloud Run 里的 GitHub 来源需要重新选择，不要假设旧绑定会自动跟过去。
 - 统一部署模型和触发器迁移清单见 [`QuantPlatformKit/docs/deployment_model.md`](../QuantPlatformKit/docs/deployment_model.md)。
 

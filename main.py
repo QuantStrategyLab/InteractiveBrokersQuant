@@ -33,6 +33,10 @@ from application.execution_service import (
 )
 from application.rebalance_service import run_strategy_core as run_rebalance_cycle
 from entrypoints.cloud_run import is_market_open_today
+from runtime_config_support import (
+    load_platform_runtime_settings,
+    resolve_ib_gateway_ip_mode,
+)
 from strategy.signals import (
     check_sma as strategy_check_sma,
     compute_13612w_momentum as strategy_compute_13612w_momentum,
@@ -54,11 +58,10 @@ def get_project_id():
 
 
 def get_ib_gateway_ip_mode():
-    mode = os.getenv("IB_GATEWAY_IP_MODE", "internal").strip().lower()
-    if mode in {"internal", "external"}:
-        return mode
-    print(f"Invalid IB_GATEWAY_IP_MODE={mode!r}, defaulting to internal", flush=True)
-    return "internal"
+    return resolve_ib_gateway_ip_mode(
+        os.getenv("IB_GATEWAY_IP_MODE"),
+        logger=lambda message: print(message, flush=True),
+    )
 
 
 def resolve_gce_instance_ip(instance_name, zone):
@@ -101,22 +104,15 @@ def get_ib_host():
     - If IB_GATEWAY_ZONE is set: resolve instance name via Compute API
     - If IB_GATEWAY_ZONE is not set: use the configured instance name directly
     """
-    host = os.getenv("IB_GATEWAY_INSTANCE_NAME")
-    if not host:
-        raise EnvironmentError("IB_GATEWAY_INSTANCE_NAME is required")
-    zone = os.getenv("IB_GATEWAY_ZONE", "")
+    host = RUNTIME_SETTINGS.ib_gateway_instance_name
+    zone = RUNTIME_SETTINGS.ib_gateway_zone
     if zone:
         return resolve_gce_instance_ip(host, zone)
     return host
 
 
 def get_ib_gateway_mode():
-    mode = os.getenv("IB_GATEWAY_MODE", "").strip().lower()
-    if not mode:
-        raise EnvironmentError("IB_GATEWAY_MODE is required and must be either 'live' or 'paper'")
-    if mode in {"live", "paper"}:
-        return mode
-    raise EnvironmentError("IB_GATEWAY_MODE must be either 'live' or 'paper'")
+    return RUNTIME_SETTINGS.ib_gateway_mode
 
 
 def get_ib_port():
@@ -127,13 +123,16 @@ def get_ib_port():
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
+RUNTIME_SETTINGS = load_platform_runtime_settings(project_id_resolver=get_project_id)
 IB_HOST = get_ib_host()
 IB_PORT = get_ib_port()
-IB_CLIENT_ID = int(os.getenv("IB_CLIENT_ID", "1"))
+IB_CLIENT_ID = RUNTIME_SETTINGS.ib_client_id
+STRATEGY_PROFILE = RUNTIME_SETTINGS.strategy_profile
+ACCOUNT_GROUP = RUNTIME_SETTINGS.account_group
 
-TG_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TG_CHAT_ID = os.getenv("GLOBAL_TELEGRAM_CHAT_ID")
-NOTIFY_LANG = os.getenv("NOTIFY_LANG", "en")
+TG_TOKEN = RUNTIME_SETTINGS.tg_token
+TG_CHAT_ID = RUNTIME_SETTINGS.tg_chat_id
+NOTIFY_LANG = RUNTIME_SETTINGS.notify_lang
 
 # Strategy parameters
 RANKING_POOL = [

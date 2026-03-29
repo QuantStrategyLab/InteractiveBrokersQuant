@@ -1,4 +1,4 @@
-"""Pure-ish strategy helpers for IBKRQuant."""
+"""Pure-ish strategy helpers for InteractiveBrokersPlatform."""
 
 from __future__ import annotations
 

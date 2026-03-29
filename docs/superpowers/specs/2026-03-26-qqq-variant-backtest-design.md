@@ -1,4 +1,4 @@
-# IBKRQuant QQQ Variant Backtest And IB Event Loop Fix Design
+# InteractiveBrokersPlatform QQQ Variant Backtest And IB Event Loop Fix Design
 
 ## 背景
 

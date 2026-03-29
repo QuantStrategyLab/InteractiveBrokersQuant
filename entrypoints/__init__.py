@@ -1,2 +1,2 @@
-"""Entrypoint helpers for IBKRQuant."""
+"""Entrypoint helpers for InteractiveBrokersPlatform."""
 

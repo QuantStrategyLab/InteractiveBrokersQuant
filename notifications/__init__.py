@@ -1,1 +1,1 @@
-"""Notification helpers for IBKRQuant."""
+"""Notification helpers for InteractiveBrokersPlatform."""

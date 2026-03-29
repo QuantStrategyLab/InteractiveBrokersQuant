@@ -142,7 +142,7 @@ IB_GATEWAY_ZONE=us-central1-c
 IB_GATEWAY_IP_MODE=internal
 ```
 
-This shared-config mode is only for the **IBKR pair** (`IBKRQuant` + `IBKRGatewayManager`). It is not meant to become a global secret bundle for unrelated quant repos. Across multiple quant projects, the only broadly reusable runtime settings are usually `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG`.
+This shared-config mode is only for the **IBKR pair** (`InteractiveBrokersPlatform` + `IBKRGatewayManager`). It is not meant to become a global secret bundle for unrelated quant repos. Across multiple quant projects, the only broadly reusable runtime settings are usually `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG`.
 
 Recommended account-group config payload:
 
@@ -354,7 +354,7 @@ IB_GATEWAY_ZONE=us-central1-c
 IB_GATEWAY_IP_MODE=internal
 ```
 
-这里说的“共享配置”只针对 **IBKR 这一组系统**，也就是 `IBKRQuant` 和 `IBKRGatewayManager` 之间共享。它不是让所有 quant 仓库都共用一套 secrets。对多个量化仓库来说，通常只有 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG` 适合做跨项目共享。
+这里说的“共享配置”只针对 **IBKR 这一组系统**，也就是 `InteractiveBrokersPlatform` 和 `IBKRGatewayManager` 之间共享。它不是让所有 quant 仓库都共用一套 secrets。对多个量化仓库来说，通常只有 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG` 适合做跨项目共享。
 
 推荐的账号组配置 JSON：
 

@@ -1,2 +1,2 @@
-"""Application-layer services for IBKRQuant."""
+"""Application-layer services for InteractiveBrokersPlatform."""
 

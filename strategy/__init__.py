@@ -1,2 +1,2 @@
-"""Strategy-layer helpers for IBKRQuant."""
+"""Strategy-layer helpers for InteractiveBrokersPlatform."""
 

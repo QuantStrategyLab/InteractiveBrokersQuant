@@ -1,4 +1,4 @@
-"""Order execution helpers for IBKRQuant."""
+"""Order execution helpers for InteractiveBrokersPlatform."""
 
 from __future__ import annotations
 

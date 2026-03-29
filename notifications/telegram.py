@@ -1,4 +1,4 @@
-"""Telegram notification and i18n helpers for IBKRQuant."""
+"""Telegram notification and i18n helpers for InteractiveBrokersPlatform."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Application orchestration for IBKRQuant."""
+"""Application orchestration for InteractiveBrokersPlatform."""
 
 from __future__ import annotations
 

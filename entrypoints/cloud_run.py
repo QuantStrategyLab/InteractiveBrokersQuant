@@ -1,4 +1,4 @@
-"""Cloud Run request helpers for IBKRQuant."""
+"""Cloud Run request helpers for InteractiveBrokersPlatform."""
 
 from __future__ import annotations
 

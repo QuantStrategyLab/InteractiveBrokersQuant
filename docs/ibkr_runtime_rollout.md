@@ -1,11 +1,11 @@
-# IBKRQuant 配置落地：先跑通 `ACCOUNT_GROUP=default`
+# InteractiveBrokersPlatform 配置落地：先跑通 `ACCOUNT_GROUP=default`
 
 这份文档只管当前这一步：**先把 `interactive-brokers-quant-global-etf-rotation` 这一个 Cloud Run 服务，用 `ACCOUNT_GROUP=default` 跑通。**
 
 不在这一步里做的事：
 
-- 不改仓库名
-- 不重绑 Cloud Build / Cloud Run 的 GitHub source
+- 不在这一步里再次改仓库名
+- 不在这一步里再次重绑 Cloud Build / Cloud Run 的 GitHub source
 - 不按 `ACCOUNT_GROUP` 拆多个 Cloud Run service
 - 不引入新的“全局量化仓库共享 secret”
 
@@ -52,7 +52,7 @@
 先复制一份出来改成你的真实值：
 
 ```bash
-cd /Users/lisiyi/Projects/IBKRQuant
+cd /Users/lisiyi/Projects/InteractiveBrokersPlatform
 cp docs/examples/ibkr-account-groups.default.json /tmp/ibkr-account-groups.json
 ```
 
@@ -248,19 +248,17 @@ gcloud run services logs read interactive-brokers-quant-global-etf-rotation \
 - secret 里没有 `default`
 - `default` 组缺 `ib_gateway_instance_name` / `ib_gateway_mode` / `ib_client_id`
 
-## 6. 哪些现在就做，哪些等仓库改名后再做
+## 6. 哪些已经完成，哪些后续再做
 
-### 现在就做
+### 当前已经完成
 
 - `ibkr-account-groups` secret 建好，并至少把 `default` 组跑通
 - Cloud Run runtime service account 权限补齐
 - GitHub env sync 改成只管服务级变量
-- 保持现有仓库名、现有 Cloud Run service、现有 trigger 不动
+- 继续保持现有 Cloud Run service、现有 trigger、现有 `ACCOUNT_GROUP=default` 运行链路稳定
 
-### 可以等仓库改名或平台化进一步落地后再做
+### 还可以后做
 
-- 仓库改名
-- Cloud Build / Cloud Run trigger 重新绑 GitHub source
 - 按 `ACCOUNT_GROUP` 拆多个 Cloud Run service
 - 为每个账号组单独定义更细的 service name / 命名规范
 - 把更多平台共性提取到后续平台级部署体系里

@@ -16,6 +16,8 @@ Quarterly momentum rotation across 22 global ETFs (international markets, commod
 
 The current `global_etf_rotation` implementation is sourced from `UsEquityStrategies`.
 
+Full strategy documentation now lives in [`UsEquityStrategies`](https://github.com/QuantStrategyLab/UsEquityStrategies#global_etf_rotation). The strategy section below is kept as an execution-side summary.
+
 ### Strategy
 
 **Pool (22 ETFs + 1 safe haven):**
@@ -265,6 +267,8 @@ gcloud run services update ibkr-quant \
 基于 IBKR 的全球 ETF 季度轮动策略（国际市场、商品、美股行业、美股宽基、科技和半导体），含每日金丝雀应急机制。定位上比 `TQQQ`、`SOXL` 这类高弹性科技策略更稳健，但不再把科技完全排除在外。部署在 GCP Cloud Run，连接 GCE 上的 IB Gateway。
 
 当前 `global_etf_rotation` 的策略实现来自 `UsEquityStrategies`。
+
+完整策略说明现在放在 [`UsEquityStrategies`](https://github.com/QuantStrategyLab/UsEquityStrategies#global_etf_rotation)。下面的策略章节主要保留执行侧摘要。
 
 ### 策略
 

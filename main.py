@@ -19,6 +19,7 @@ from notifications.telegram import build_translator, send_telegram_message
 from quant_platform_kit.common.models import OrderIntent
 from quant_platform_kit.ibkr import (
     connect_ib as ibkr_connect_ib,
+    ensure_event_loop as ibkr_ensure_event_loop,
     fetch_historical_price_series,
     fetch_portfolio_snapshot,
     fetch_quote_snapshots,
@@ -38,6 +39,7 @@ from runtime_config_support import (
 from strategy_loader import load_signal_logic_module
 
 app = Flask(__name__)
+ensure_event_loop = ibkr_ensure_event_loop
 
 
 # ---------------------------------------------------------------------------

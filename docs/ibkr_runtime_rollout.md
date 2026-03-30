@@ -186,12 +186,11 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
 
 ### Repository Secrets
 
-- `GCP_SA_KEY`
 - `TELEGRAM_TOKEN`（仅在没设置 `TELEGRAM_TOKEN_SECRET_NAME` 时作为 fallback）
 
 说明：
 
-- `GCP_SA_KEY` 对应的是 **GitHub Actions 用的部署账号**，不是 Cloud Run runtime service account。
+- GitHub 现在通过 OIDC + Workload Identity Federation 登录 Google Cloud，这个 workflow 不再需要 `GCP_SA_KEY`。
 - 如果你现在只用这个 workflow 做“同步已有 Cloud Run service 的 env”，那这个 GitHub Actions 账号只需要能更新目标 Cloud Run service，不需要现在就补 Cloud Build / Artifact Registry 那一套权限。
 
 ## 5. 先把 `ACCOUNT_GROUP=default` 跑通的顺序

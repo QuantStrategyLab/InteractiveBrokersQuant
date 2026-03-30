@@ -4,10 +4,18 @@ on:
   push:
     branches: [ main ]
 
+env:
+  GCP_PROJECT_ID: interactivebrokersquant
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/303168642265/locations/global/workloadIdentityPools/github-actions/providers/github-main
+  GCP_WORKLOAD_IDENTITY_SERVICE_ACCOUNT: ibkr-platform-build@interactivebrokersquant.iam.gserviceaccount.com
+
 jobs:
   sync-cloud-run-env:
     name: Sync Cloud Run Env
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     env:
       ENABLE_GITHUB_ENV_SYNC: ${{ vars.ENABLE_GITHUB_ENV_SYNC }}
       CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
@@ -20,7 +28,6 @@ jobs:
       IB_GATEWAY_IP_MODE: ${{ vars.IB_GATEWAY_IP_MODE }}
       GLOBAL_TELEGRAM_CHAT_ID: ${{ vars.GLOBAL_TELEGRAM_CHAT_ID }}
       NOTIFY_LANG: ${{ vars.NOTIFY_LANG }}
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
     steps:
       - name: Check whether env sync is configured
@@ -42,7 +49,6 @@ jobs:
             IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME
             GLOBAL_TELEGRAM_CHAT_ID
             NOTIFY_LANG
-            GCP_SA_KEY
           )
 
           missing_vars=()
@@ -70,13 +76,14 @@ jobs:
         if: steps.config.outputs.enabled == 'true'
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ env.GCP_SA_KEY }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_WORKLOAD_IDENTITY_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
         if: steps.config.outputs.enabled == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
-          project_id: ${{ steps.auth.outputs.project_id }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
           version: ">= 416.0.0"
 
       - name: Sync Cloud Run environment

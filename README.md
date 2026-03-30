@@ -201,7 +201,6 @@ Recommended setup:
   - `GLOBAL_TELEGRAM_CHAT_ID`
   - `NOTIFY_LANG`
 - **Repository Secrets**
-  - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN` (fallback only when `TELEGRAM_TOKEN_SECRET_NAME` is not set)
 - **Optional transition Variables**
   - `IB_GATEWAY_ZONE`
@@ -214,9 +213,9 @@ For now, `STRATEGY_PROFILE` still only supports one strategy profile. The curren
 Important:
 
 - The workflow only becomes strict when `ENABLE_GITHUB_ENV_SYNC=true`. If this variable is unset, the sync job is skipped.
-- Here "shared config" still only means the **IBKR pair** (`InteractiveBrokersPlatform` + `IBKRGatewayManager`). `GCP_SA_KEY`, `TELEGRAM_TOKEN`, and `TELEGRAM_TOKEN_SECRET_NAME` remain repository-specific.
+- Here "shared config" still only means the **IBKR pair** (`InteractiveBrokersPlatform` + `IBKRGatewayManager`). `TELEGRAM_TOKEN` and `TELEGRAM_TOKEN_SECRET_NAME` remain repository-specific.
 - If `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME` is set, the Cloud Run runtime needs Secret Manager access to that secret.
-- `GCP_SA_KEY` belongs to the GitHub Actions deploy identity, not to the Cloud Run runtime service account.
+- GitHub now authenticates to Google Cloud with OIDC + Workload Identity Federation, so `GCP_SA_KEY` is no longer required for this workflow.
 
 ### Deployment unit and naming
 
@@ -417,7 +416,6 @@ IB_GATEWAY_IP_MODE=internal
   - `GLOBAL_TELEGRAM_CHAT_ID`
   - `NOTIFY_LANG`
 - **仓库级 Secrets**
-  - `GCP_SA_KEY`
   - `TELEGRAM_TOKEN`（仅在没设置 `TELEGRAM_TOKEN_SECRET_NAME` 时作为 fallback）
 - **可选过渡 Variables**
   - `IB_GATEWAY_ZONE`
@@ -430,9 +428,9 @@ IB_GATEWAY_IP_MODE=internal
 注意：
 
 - 只有在 `ENABLE_GITHUB_ENV_SYNC=true` 时，这个 workflow 才会严格校验并执行同步。没打开时会直接跳过。
-- 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`GCP_SA_KEY`、`TELEGRAM_TOKEN` 和 `TELEGRAM_TOKEN_SECRET_NAME` 都还是这个仓库自己的配置，不建议提升成所有 quant 共用的全局配置。
+- 这里说的“共享配置”仍然只针对 **IBKR 这一组系统**。`TELEGRAM_TOKEN` 和 `TELEGRAM_TOKEN_SECRET_NAME` 都还是这个仓库自己的配置，不建议提升成所有 quant 共用的全局配置。
 - 如果设置了 `IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME`，Cloud Run 运行时还需要有对应 Secret 的访问权限。
-- `GCP_SA_KEY` 对应的是 GitHub Actions 的部署身份，不是 Cloud Run runtime service account。
+- GitHub 现在通过 OIDC + Workload Identity Federation 登录 Google Cloud，这个 workflow 不再需要 `GCP_SA_KEY`。
 
 ### 部署单元和命名建议
 

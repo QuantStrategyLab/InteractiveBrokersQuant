@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 import json
 
 from application.rebalance_service import run_strategy_core

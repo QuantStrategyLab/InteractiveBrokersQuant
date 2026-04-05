@@ -18,7 +18,7 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
 

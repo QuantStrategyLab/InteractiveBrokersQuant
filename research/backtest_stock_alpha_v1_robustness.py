@@ -28,7 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_stock_alpha_suite as suite
+import backtest_stock_alpha_suite as suite  # noqa: E402
 
 from us_equity_strategies.backtests.russell_1000_multi_factor_defensive import (  # noqa: E402
     build_monthly_rebalance_dates,
@@ -979,7 +979,7 @@ def write_markdown_report(
         f"- regime={base_config.regime.name}",
         f"- breadth thresholds: soft={SOFT_BREADTH_THRESHOLD:.0%}, hard={HARD_BREADTH_THRESHOLD:.0%}",
         f"- normalization={base_config.group_normalization}",
-        f"- residual proxy=simple excess return vs QQQ",
+        "- residual proxy=simple excess return vs QQQ",
         "",
         "## Parameter stability (5 bps, full sample top 12)",
         format_frame(parameter_full.head(12)[[

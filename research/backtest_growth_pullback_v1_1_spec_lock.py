@@ -9,7 +9,6 @@ import math
 import sys
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -18,10 +17,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_growth_pullback_suite as gp
-import backtest_stock_alpha_v1_1_spec_lock as v11
-import backtest_stock_alpha_v1_robustness as robust
-import backtest_stock_alpha_suite as suite
+import backtest_growth_pullback_suite as gp  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
+import backtest_stock_alpha_suite as suite  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
@@ -398,7 +396,6 @@ def build_local_plateau(local_oos_rows: pd.DataFrame, center_row: pd.Series) -> 
     frame["within_100bps"] = frame["abs_delta_oos_cagr_vs_center"] <= 0.010
     frame["within_200bps"] = frame["abs_delta_oos_cagr_vs_center"] <= 0.020
     local_only = frame.loc[frame["strategy"] != str(center_row["strategy"])].copy()
-    denom = max(len(local_only), 1)
     summary = {
         "variant_count_ex_center": int(len(local_only)),
         "local_plateau_50bps_share": float(local_only["within_50bps"].mean()) if not local_only.empty else float("nan"),
@@ -510,8 +507,6 @@ def write_markdown_report(
     comparison_df_5bps: pd.DataFrame,
     recommendation: dict[str, object],
 ) -> None:
-    center_occ = occupancy_summary_df.loc[occupancy_summary_df["strategy"] == center_config.name].iloc[0]
-    stable_occ = occupancy_summary_df.loc[occupancy_summary_df["strategy"] == str(stable_result_5bps["strategy"])].iloc[0]
     lines = [
         "# growth_pullback_systematic_v1.1 spec lock",
         "",
@@ -639,7 +634,6 @@ def main() -> None:
     local_oos_main = local_df.loc[(local_df["cost_bps_one_way"] == MAIN_COST_BPS) & (local_df["period"] == "OOS Sample")].copy()
     local_plateau_df, local_plateau_summary = build_local_plateau(local_oos_main, center_oos)
 
-    center_full = extract_period_row(local_df, center_config.name, MAIN_COST_BPS, "Full Sample")
     local_summary_rows = []
     for strategy_name in sorted(local_df["strategy"].unique()):
         full_row = extract_period_row(local_df, strategy_name, MAIN_COST_BPS, "Full Sample")

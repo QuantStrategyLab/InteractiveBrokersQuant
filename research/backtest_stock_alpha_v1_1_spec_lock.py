@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -26,8 +25,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_stock_alpha_suite as suite
-import backtest_stock_alpha_v1_robustness as robust
+import backtest_stock_alpha_suite as suite  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"

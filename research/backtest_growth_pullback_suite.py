@@ -15,7 +15,7 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -26,9 +26,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_stock_alpha_suite as suite
-import backtest_stock_alpha_v1_1_spec_lock as v11
-import backtest_stock_alpha_v1_robustness as robust
+import backtest_stock_alpha_suite as suite  # noqa: E402
+import backtest_stock_alpha_v1_1_spec_lock as v11  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
@@ -1157,8 +1157,6 @@ def build_recommendation(
     broad_best = family_best_df.loc[family_best_df["family"] == "broad_growth_leadership_pullback"].iloc[0] if (family_best_df["family"] == "broad_growth_leadership_pullback").any() else None
     tech_best = family_best_df.loc[family_best_df["family"] == "tech_heavy_pullback"].iloc[0] if (family_best_df["family"] == "tech_heavy_pullback").any() else None
     crypto_best = family_best_df.loc[family_best_df["family"] == "crypto_equity_theme_pullback"].iloc[0] if (family_best_df["family"] == "crypto_equity_theme_pullback").any() else None
-    trend_best = family_best_df.loc[family_best_df["family"] == "trend_only_control"].iloc[0] if (family_best_df["family"] == "trend_only_control").any() else None
-    naive_best = family_best_df.loc[family_best_df["family"] == "naive_dip_buy_control"].iloc[0] if (family_best_df["family"] == "naive_dip_buy_control").any() else None
 
     if default_row["family"] == "broad_growth_leadership_pullback":
         main_line = "broad_growth_leadership_pullback"

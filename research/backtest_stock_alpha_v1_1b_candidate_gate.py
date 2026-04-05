@@ -27,9 +27,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_stock_alpha_suite as suite
-import backtest_stock_alpha_v1_1_spec_lock as v11
-import backtest_stock_alpha_v1_robustness as robust
+import backtest_stock_alpha_suite as suite  # noqa: E402
+import backtest_stock_alpha_v1_1_spec_lock as v11  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
@@ -591,7 +591,7 @@ def main() -> None:
         & (candidate_gate_df["period"] == "OOS Sample")
     ].iloc[0]
     neighbor_oos_rows_5bps = candidate_gate_df.loc[
-        (candidate_gate_df["is_neighbor"] == True)
+        (candidate_gate_df["is_neighbor"])
         & (candidate_gate_df["cost_bps_one_way"] == MAIN_COST_BPS)
         & (candidate_gate_df["period"] == "OOS Sample")
     ].copy()

@@ -18,10 +18,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_growth_pullback_suite as gp
-import backtest_growth_pullback_v1_1_spec_lock as v11g
-import backtest_stock_alpha_v1_robustness as robust
-import backtest_stock_alpha_suite as suite
+import backtest_growth_pullback_suite as gp  # noqa: E402
+import backtest_growth_pullback_v1_1_spec_lock as v11g  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
+import backtest_stock_alpha_suite as suite  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
@@ -672,7 +672,6 @@ def main() -> None:
         deployment_summary_rows.append(summarize_deployment(monthly))
 
     candidate_df = pd.DataFrame(candidate_rows)
-    deployment_monthly_df = pd.concat(deployment_monthly_frames, ignore_index=True)
     deployment_summary_df = pd.DataFrame(deployment_summary_rows)
 
     reference_rows_df, reference_artifacts = gp.build_reference_rows(context, COST_LEVELS)

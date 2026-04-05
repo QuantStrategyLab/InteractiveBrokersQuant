@@ -17,11 +17,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_growth_pullback_suite as gp
-import backtest_growth_pullback_v1_2_geometry_repair as v12
-import backtest_stock_alpha_suite as suite
-import backtest_stock_alpha_v1_1_spec_lock as v11
-import backtest_stock_alpha_v1_robustness as robust
+import backtest_growth_pullback_suite as gp  # noqa: E402
+import backtest_growth_pullback_v1_2_geometry_repair as v12  # noqa: E402
+import backtest_stock_alpha_suite as suite  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
@@ -913,7 +912,7 @@ def write_summary_markdown(
         f"- sector_cap={float(baseline_payload['sector_cap']):.0%}",
         f"- hold_bonus={float(baseline_payload['hold_bonus']):.2f}",
         f"- benchmark={baseline_payload['benchmark_symbol']}",
-        f"- non-rebalance days=no-op baseline; overlay only changes exposure / existing-name weights / BOXX",
+        "- non-rebalance days=no-op baseline; overlay only changes exposure / existing-name weights / BOXX",
         "",
         "## Overlay families tested",
         "- daily_portfolio_throttle_overlay",
@@ -1030,7 +1029,6 @@ def main() -> None:
     best_portfolio_row = family_scores.loc[family_scores["family"] == "daily_portfolio_throttle_overlay"].iloc[0]
     best_name_row = family_scores.loc[family_scores["family"] == "daily_name_level_trim_overlay"].iloc[0]
 
-    combo_rows: pd.DataFrame | None = None
     combo_candidate: OverlayStrategyConfig | None = None
     if overlay_has_incremental_value(best_portfolio_row, baseline_oos_row) and overlay_has_incremental_value(best_name_row, baseline_oos_row):
         portfolio_cfg = next(candidate for candidate in portfolio_candidates if candidate.name == str(best_portfolio_row["strategy"]))
@@ -1041,7 +1039,6 @@ def main() -> None:
         combo_candidate_rows = candidate_rows_from_artifacts(combo_candidate.name, combo_candidate.family, combo_artifacts, benchmark_returns, cost_bps_values=COST_LEVELS)
         all_rows_df = pd.concat([all_rows_df, pd.DataFrame(combo_candidate_rows)], ignore_index=True)
         family_scores = build_family_selection_table(all_rows_df, oos_benchmark_cagr=qqq_oos_cagr)
-        combo_rows = family_scores.loc[family_scores["strategy"] == combo_candidate.name].copy()
 
     # qqq_plus_current_default reference
     qqq_rows = build_reference_rows_from_existing_results(

@@ -8,7 +8,6 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -17,9 +16,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import backtest_growth_pullback_suite as gp
-import backtest_growth_pullback_v1_2_geometry_repair as v12
-import backtest_stock_alpha_v1_robustness as robust
+import backtest_growth_pullback_suite as gp  # noqa: E402
+import backtest_growth_pullback_v1_2_geometry_repair as v12  # noqa: E402
+import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
 
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"

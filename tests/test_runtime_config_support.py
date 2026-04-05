@@ -5,7 +5,7 @@ from runtime_config_support import (
     load_platform_runtime_settings,
     parse_account_group_configs,
 )
-from strategy_registry import IBKR_PLATFORM, US_EQUITY_DOMAIN, get_supported_profiles_for_platform
+from strategy_registry import IBKR_PLATFORM, US_EQUITY_DOMAIN, get_platform_profile_matrix, get_supported_profiles_for_platform
 
 
 MINIMAL_GROUP_JSON = (
@@ -135,6 +135,26 @@ def test_platform_supported_profiles_are_filtered_by_registry():
             "russell_1000_multi_factor_defensive",
         }
     )
+
+
+def test_load_platform_runtime_settings_accepts_cash_buffer_alias(monkeypatch):
+    monkeypatch.setenv("STRATEGY_PROFILE", "tech_pullback_cash_buffer")
+    monkeypatch.setenv("ACCOUNT_GROUP", "default")
+    monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_JSON", MINIMAL_GROUP_JSON)
+    monkeypatch.setenv("IBKR_FEATURE_SNAPSHOT_PATH", "/tmp/cash-buffer.csv")
+
+    settings = load_platform_runtime_settings(project_id_resolver=lambda: "project-1")
+
+    assert settings.strategy_profile == "cash_buffer_branch_default"
+
+
+def test_platform_profile_matrix_marks_default_and_rollback():
+    rows = get_platform_profile_matrix()
+    by_profile = {row["canonical_profile"]: row for row in rows}
+    assert by_profile["global_etf_rotation"]["is_default"] is True
+    assert by_profile["global_etf_rotation"]["is_rollback"] is True
+    assert by_profile["cash_buffer_branch_default"]["display_name"] == "Tech Pullback Cash Buffer"
+
 
 
 def test_load_platform_runtime_settings_reads_feature_snapshot_path(monkeypatch):

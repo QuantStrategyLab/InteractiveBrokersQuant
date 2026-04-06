@@ -10,6 +10,19 @@ def translate(key, **kwargs):
         "failed": "failed {reason}",
         "market_sell": "sell {symbol} {qty}",
         "limit_buy": "buy {symbol} {qty} @{price}",
+        "target_diff": "target_diff {symbol}: current={current} target={target} delta={delta}",
+        "execution_profile_detail": "profile={profile}",
+        "regime_detail": "regime={value}",
+        "breadth_detail": "breadth={value}",
+        "target_stock_detail": "target_stock={value}",
+        "realized_stock_detail": "realized_stock={value}",
+        "snapshot_as_of_detail": "snapshot_as_of={value}",
+        "trade_date_detail": "trade_date={value}",
+        "pending_orders_detected": "pending_orders_detected profile={profile} symbols={symbols}",
+        "same_day_fills_detected": "same_day_fills_detected profile={profile} mode={mode} symbols={symbols} trade_date={trade_date}",
+        "same_day_execution_locked": "same_day_execution_locked profile={profile} mode={mode} trade_date={trade_date} snapshot_date={snapshot_date} target_hash={target_hash} lock_path={lock_path}",
+        "execution_lock_acquired": "execution_lock_acquired mode={mode} trade_date={trade_date} snapshot_date={snapshot_date} lock_path={lock_path}",
+        "no_equity": "❌ No equity",
     }
     template = templates[key]
     return template.format(**kwargs) if kwargs else template

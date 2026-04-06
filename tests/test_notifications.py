@@ -4,6 +4,7 @@ from notifications.telegram import build_translator, send_telegram_message
 def test_build_translator_supports_chinese():
     translate = build_translator("zh")
     assert translate("equity") == "净值"
+    assert translate("target_weights_title") == "目标持仓"
 
 
 def test_send_telegram_message_logs_non_200_response(capsys):

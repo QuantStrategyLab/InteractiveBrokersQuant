@@ -171,6 +171,11 @@ def _sanitize_token(value: str | None) -> str:
     return safe or "none"
 
 
+def _display_text(value: Any, *, fallback: str) -> str:
+    text = str(value).strip() if value is not None else ""
+    return text or fallback
+
+
 def _resolve_execution_lock_path(
     *,
     strategy_profile: str | None,
@@ -240,6 +245,8 @@ def _format_target_lines(
     target_weights: dict[str, float],
     current_mv: dict[str, float],
     equity: float,
+    *,
+    translator,
 ) -> list[str]:
     current_weight = {
         symbol: (current_mv.get(symbol, 0.0) / equity if equity > 0 else 0.0)
@@ -249,7 +256,13 @@ def _format_target_lines(
     for symbol, target_weight in sorted(target_weights.items(), key=lambda item: (-item[1], item[0])):
         delta = target_weight - current_weight.get(symbol, 0.0)
         target_lines.append(
-            f"target_diff {symbol}: current={current_weight.get(symbol, 0.0):.1%} target={target_weight:.1%} delta={delta:.1%}"
+            translator(
+                "target_diff",
+                symbol=symbol,
+                current=f"{current_weight.get(symbol, 0.0):.1%}",
+                target=f"{target_weight:.1%}",
+                delta=f"{delta:.1%}",
+            )
         )
     return target_lines
 
@@ -340,7 +353,7 @@ def execute_rebalance(
     if equity <= 0:
         execution_summary["execution_status"] = "blocked"
         execution_summary["no_op_reason"] = "no_equity"
-        return _finalize_result(["❌ No equity"], execution_summary, return_summary=return_summary)
+        return _finalize_result([translator("no_equity")], execution_summary, return_summary=return_summary)
 
     reserved = equity * cash_reserve_ratio
     investable = equity - reserved
@@ -377,18 +390,49 @@ def execute_rebalance(
         execution_summary["no_op_reason"] = reason
         execution_summary["skipped_reasons"].append(reason)
         trade_logs.append(
-            f"pending_orders_detected profile={strategy_profile or '<unknown>'} symbols={','.join(pending_symbols)}"
+            translator(
+                "pending_orders_detected",
+                profile=_display_text(strategy_profile, fallback="<unknown>"),
+                symbols=",".join(pending_symbols),
+            )
         )
         return _finalize_result(trade_logs, execution_summary, return_summary=return_summary)
 
     trade_logs.append(
-        f"profile={strategy_profile or '<unknown>'} regime={signal_metadata.get('regime')} "
-        f"breadth={signal_metadata.get('breadth_ratio', 0.0):.1%} "
-        f"target_stock={signal_metadata.get('target_stock_weight', 0.0):.1%} "
-        f"realized_stock={signal_metadata.get('realized_stock_weight', 0.0):.1%} "
-        f"snapshot_as_of={snapshot_date or '<none>'} trade_date={trade_date or '<none>'}"
+        " | ".join(
+            [
+                translator(
+                    "execution_profile_detail",
+                    profile=_display_text(strategy_profile, fallback="<unknown>"),
+                ),
+                translator(
+                    "regime_detail",
+                    value=_display_text(signal_metadata.get("regime"), fallback="<none>"),
+                ),
+                translator(
+                    "breadth_detail",
+                    value=f"{float(signal_metadata.get('breadth_ratio', 0.0) or 0.0):.1%}",
+                ),
+                translator(
+                    "target_stock_detail",
+                    value=f"{float(signal_metadata.get('target_stock_weight', 0.0) or 0.0):.1%}",
+                ),
+                translator(
+                    "realized_stock_detail",
+                    value=f"{float(signal_metadata.get('realized_stock_weight', 0.0) or 0.0):.1%}",
+                ),
+                translator(
+                    "snapshot_as_of_detail",
+                    value=_display_text(snapshot_date, fallback="<none>"),
+                ),
+                translator(
+                    "trade_date_detail",
+                    value=_display_text(trade_date, fallback="<none>"),
+                ),
+            ]
+        )
     )
-    trade_logs.extend(_format_target_lines(target_weights, current_mv, equity))
+    trade_logs.extend(_format_target_lines(target_weights, current_mv, equity, translator=translator))
 
     has_sell_plan = False
     for symbol in all_symbols:
@@ -428,8 +472,13 @@ def execute_rebalance(
         execution_summary["no_op_reason"] = reason
         execution_summary["skipped_reasons"].append(reason)
         trade_logs.append(
-            f"same_day_fills_detected profile={strategy_profile or '<unknown>'} mode={'dry_run' if dry_run_only else 'paper'} "
-            f"symbols={','.join(same_day_filled_symbols)} trade_date={trade_date}"
+            translator(
+                "same_day_fills_detected",
+                profile=_display_text(strategy_profile, fallback="<unknown>"),
+                mode="dry_run" if dry_run_only else "paper",
+                symbols=",".join(same_day_filled_symbols),
+                trade_date=_display_text(trade_date, fallback="<none>"),
+            )
         )
         return _finalize_result(trade_logs, execution_summary, return_summary=return_summary)
 
@@ -463,16 +512,26 @@ def execute_rebalance(
         execution_summary["skipped_reasons"].append(reason)
         execution_summary["lock_path"] = str(lock_path)
         trade_logs.append(
-            "same_day_execution_locked "
-            f"profile={strategy_profile or '<unknown>'} mode={'dry_run' if dry_run_only else 'paper'} "
-            f"trade_date={trade_date or '<none>'} snapshot_date={snapshot_date or '<none>'} "
-            f"target_hash={existing.get('target_hash', '<unknown>')} lock_path={lock_path}"
+            translator(
+                "same_day_execution_locked",
+                profile=_display_text(strategy_profile, fallback="<unknown>"),
+                mode="dry_run" if dry_run_only else "paper",
+                trade_date=_display_text(trade_date, fallback="<none>"),
+                snapshot_date=_display_text(snapshot_date, fallback="<none>"),
+                target_hash=_display_text(existing.get("target_hash"), fallback="<unknown>"),
+                lock_path=str(lock_path),
+            )
         )
         return _finalize_result(trade_logs, execution_summary, return_summary=return_summary)
     execution_summary["lock_path"] = str(lock_path)
     trade_logs.append(
-        f"execution_lock_acquired mode={'dry_run' if dry_run_only else 'paper'} "
-        f"trade_date={trade_date or '<none>'} snapshot_date={snapshot_date or '<none>'} lock_path={lock_path}"
+        translator(
+            "execution_lock_acquired",
+            mode="dry_run" if dry_run_only else "paper",
+            trade_date=_display_text(trade_date, fallback="<none>"),
+            snapshot_date=_display_text(snapshot_date, fallback="<none>"),
+            lock_path=str(lock_path),
+        )
     )
     execution_summary["execution_status"] = "executing"
 

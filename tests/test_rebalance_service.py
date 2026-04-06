@@ -1,6 +1,31 @@
 import json
 
-from application.rebalance_service import run_strategy_core
+from application.rebalance_service import build_dashboard, run_strategy_core
+from notifications.telegram import build_translator
+
+
+def test_build_dashboard_localizes_strategy_details():
+    dashboard = build_dashboard(
+        positions={},
+        account_values={"equity": 1000.0, "buying_power": 500.0},
+        signal_desc="保持观望",
+        status_desc="breadth=0.0%",
+        strategy_profile="global_etf_rotation",
+        target_weights={},
+        signal_metadata={
+            "regime": "risk_off",
+            "breadth_ratio": 0.0,
+            "target_stock_weight": 0.0,
+            "realized_stock_weight": 0.0,
+            "snapshot_as_of": None,
+        },
+        translator=build_translator("zh"),
+        separator="---",
+    )
+
+    assert "策略=global_etf_rotation" in dashboard
+    assert "目标持仓" in dashboard
+    assert "市场阶段=risk_off" in dashboard
 
 
 def test_run_strategy_core_passes_signal_metadata_to_execution():
@@ -44,6 +69,21 @@ def test_run_strategy_core_passes_signal_metadata_to_execution():
             "no_trades": "no trades",
             "equity": "equity",
             "buying_power": "buying_power",
+            "empty_positions": "(empty positions)",
+            "empty_target_weights": "(empty target positions)",
+            "target_weights_title": "Target Weights",
+            "strategy_profile_detail": "strategy_profile={profile}",
+            "regime_detail": "regime={value}",
+            "breadth_detail": "breadth={value}",
+            "target_stock_detail": "target_stock={value}",
+            "realized_stock_detail": "realized_stock={value}",
+            "safe_haven_target_detail": "safe_haven_target={value}",
+            "snapshot_decision_detail": "snapshot_decision={value}",
+            "snapshot_as_of_detail": "snapshot_as_of={value}",
+            "snapshot_age_days_detail": "snapshot_age_days={value}",
+            "snapshot_file_ts_detail": "snapshot_file_ts={value}",
+            "snapshot_path_detail": "snapshot_path={value}",
+            "config_source_detail": "config_source={value}",
         }.get(key, key),
         separator="---",
     )
@@ -53,6 +93,7 @@ def test_run_strategy_core_passes_signal_metadata_to_execution():
     assert observed["signal_metadata"]["managed_symbols"] == ("AAA", "BOXX")
     assert observed["messages"]
     assert "📏 breadth=60.0%" in observed["messages"][0]
+    assert "Target Weights" in observed["messages"][0]
 
 
 def test_run_strategy_core_writes_reconciliation_record(tmp_path):
@@ -113,6 +154,21 @@ def test_run_strategy_core_writes_reconciliation_record(tmp_path):
             "no_trades": "no trades",
             "equity": "equity",
             "buying_power": "buying_power",
+            "empty_positions": "(empty positions)",
+            "empty_target_weights": "(empty target positions)",
+            "target_weights_title": "Target Weights",
+            "strategy_profile_detail": "strategy_profile={profile}",
+            "regime_detail": "regime={value}",
+            "breadth_detail": "breadth={value}",
+            "target_stock_detail": "target_stock={value}",
+            "realized_stock_detail": "realized_stock={value}",
+            "safe_haven_target_detail": "safe_haven_target={value}",
+            "snapshot_decision_detail": "snapshot_decision={value}",
+            "snapshot_as_of_detail": "snapshot_as_of={value}",
+            "snapshot_age_days_detail": "snapshot_age_days={value}",
+            "snapshot_file_ts_detail": "snapshot_file_ts={value}",
+            "snapshot_path_detail": "snapshot_path={value}",
+            "config_source_detail": "config_source={value}",
         }.get(key, key),
         separator="---",
         reconciliation_output_path=output_path,

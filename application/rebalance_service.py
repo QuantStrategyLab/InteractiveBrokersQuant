@@ -10,6 +10,11 @@ from application.reconciliation_service import (
 )
 
 
+def _format_text(value, *, fallback: str) -> str:
+    text = str(value).strip() if value is not None else ""
+    return text or fallback
+
+
 def build_dashboard(
     positions,
     account_values,
@@ -31,14 +36,13 @@ def build_dashboard(
         avg = positions[symbol]["avg_cost"]
         market_value = qty * avg
         position_lines.append(f"  {symbol}: {qty}股 ${market_value:,.2f}")
-    position_text = "\n".join(position_lines) if position_lines else "  (空仓)"
+    position_text = "\n".join(position_lines) if position_lines else translator("empty_positions")
     signal_metadata = signal_metadata or {}
     target_lines = []
     if target_weights:
         for symbol, weight in sorted(target_weights.items(), key=lambda item: (-item[1], item[0])):
             target_lines.append(f"  {symbol}: {weight:.1%}")
-    target_text = "\n".join(target_lines) if target_lines else "  (无目标持仓)"
-    profile_line = f"strategy_profile={strategy_profile}" if strategy_profile else "strategy_profile=<unknown>"
+    target_text = "\n".join(target_lines) if target_lines else translator("empty_target_weights")
     regime = signal_metadata.get("regime")
     breadth_ratio = signal_metadata.get("breadth_ratio")
     target_stock_weight = signal_metadata.get("target_stock_weight")
@@ -51,18 +55,30 @@ def build_dashboard(
     snapshot_file_timestamp = signal_metadata.get("snapshot_file_timestamp")
     snapshot_decision = signal_metadata.get("snapshot_guard_decision")
     diagnostics = [
-        profile_line,
-        f"regime={regime}" if regime else None,
-        f"breadth={breadth_ratio:.1%}" if isinstance(breadth_ratio, (int, float)) else None,
-        f"risk_target={target_stock_weight:.1%}" if isinstance(target_stock_weight, (int, float)) else None,
-        f"realized_stock={realized_stock_weight:.1%}" if isinstance(realized_stock_weight, (int, float)) else None,
-        f"safe_haven_target={safe_haven_weight:.1%}" if isinstance(safe_haven_weight, (int, float)) else None,
-        f"snapshot_decision={snapshot_decision}" if snapshot_decision else None,
-        f"snapshot_as_of={snapshot_as_of}" if snapshot_as_of else None,
-        f"snapshot_age_days={snapshot_age_days}" if isinstance(snapshot_age_days, (int, float)) else None,
-        f"snapshot_file_ts={snapshot_file_timestamp}" if snapshot_file_timestamp else None,
-        f"snapshot_path={snapshot_path}" if snapshot_path else None,
-        f"config_source={config_source}" if config_source else None,
+        translator("strategy_profile_detail", profile=_format_text(strategy_profile, fallback="<unknown>")),
+        translator("regime_detail", value=_format_text(regime, fallback="<none>")) if regime is not None else None,
+        translator("breadth_detail", value=f"{breadth_ratio:.1%}") if isinstance(breadth_ratio, (int, float)) else None,
+        translator("target_stock_detail", value=f"{target_stock_weight:.1%}")
+        if isinstance(target_stock_weight, (int, float))
+        else None,
+        translator("realized_stock_detail", value=f"{realized_stock_weight:.1%}")
+        if isinstance(realized_stock_weight, (int, float))
+        else None,
+        translator("safe_haven_target_detail", value=f"{safe_haven_weight:.1%}")
+        if isinstance(safe_haven_weight, (int, float))
+        else None,
+        translator("snapshot_decision_detail", value=_format_text(snapshot_decision, fallback="<none>"))
+        if snapshot_decision
+        else None,
+        translator("snapshot_as_of_detail", value=_format_text(snapshot_as_of, fallback="<none>")) if snapshot_as_of else None,
+        translator("snapshot_age_days_detail", value=_format_text(snapshot_age_days, fallback="<none>"))
+        if isinstance(snapshot_age_days, (int, float))
+        else None,
+        translator("snapshot_file_ts_detail", value=_format_text(snapshot_file_timestamp, fallback="<none>"))
+        if snapshot_file_timestamp
+        else None,
+        translator("snapshot_path_detail", value=_format_text(snapshot_path, fallback="<none>")) if snapshot_path else None,
+        translator("config_source_detail", value=_format_text(config_source, fallback="<none>")) if config_source else None,
     ]
     diagnostics_text = " | ".join(part for part in diagnostics if part)
     return (
@@ -75,7 +91,7 @@ def build_dashboard(
         f"{status_icon} {status_desc}\n"
         f"🎯 {signal_desc}\n"
         f"{separator}\n"
-        f"Target Weights:\n{target_text}"
+        f"{translator('target_weights_title')}:\n{target_text}"
     )
 
 

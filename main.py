@@ -1,7 +1,7 @@
 """IBKR strategy runner for shared us_equity strategy profiles."""
 import os
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import requests
@@ -16,6 +16,12 @@ except ImportError:
 
 from notifications.telegram import build_translator, send_telegram_message
 from quant_platform_kit.common.models import OrderIntent
+from quant_platform_kit.common.runtime_reports import (
+    append_runtime_report_error,
+    build_runtime_report_base,
+    finalize_runtime_report,
+    persist_runtime_report,
+)
 from quant_platform_kit.ibkr import (
     connect_ib as ibkr_connect_ib,
     ensure_event_loop as ibkr_ensure_event_loop,
@@ -225,6 +231,56 @@ def log_runtime_event(log_context, event, **fields):
     )
 
 
+def build_execution_report(log_context):
+    managed_symbols = tuple(
+        str(symbol)
+        for symbol in (
+            STRATEGY_RUNTIME_CONFIG.get("managed_symbols")
+            or tuple(dict.fromkeys([*RANKING_POOL, SAFE_HAVEN])) if RANKING_POOL else (SAFE_HAVEN,)
+        )
+        if str(symbol or "").strip()
+    )
+    return build_runtime_report_base(
+        platform=log_context.platform,
+        deploy_target=log_context.deploy_target,
+        service_name=log_context.service_name,
+        strategy_profile=STRATEGY_PROFILE,
+        strategy_domain=RUNTIME_SETTINGS.strategy_domain,
+        account_scope=log_context.account_scope,
+        account_group=log_context.account_group,
+        run_id=log_context.run_id,
+        run_source="cloud_run",
+        dry_run=RUNTIME_SETTINGS.dry_run_only,
+        started_at=datetime.now(timezone.utc),
+        summary={
+            "account_ids": list(ACCOUNT_IDS),
+            "managed_symbols": list(managed_symbols),
+            "signal_source": STRATEGY_SIGNAL_SOURCE,
+            "status_icon": STRATEGY_STATUS_ICON,
+            "safe_haven": SAFE_HAVEN,
+        },
+        diagnostics={
+            "strategy_config_source": FEATURE_RUNTIME_CONFIG_SOURCE,
+        },
+        artifacts={
+            "feature_snapshot_path": FEATURE_SNAPSHOT_PATH,
+            "feature_snapshot_manifest_path": FEATURE_SNAPSHOT_MANIFEST_PATH,
+            "strategy_config_path": FEATURE_RUNTIME_CONFIG_PATH,
+            "reconciliation_output_path": RECONCILIATION_OUTPUT_PATH,
+        },
+    )
+
+
+def persist_execution_report(report):
+    persisted = persist_runtime_report(
+        report,
+        base_dir=os.getenv("EXECUTION_REPORT_OUTPUT_DIR"),
+        gcs_prefix_uri=os.getenv("EXECUTION_REPORT_GCS_URI"),
+        gcp_project_id=PROJECT_ID,
+    )
+    return persisted.gcs_uri or persisted.local_path
+
+
 def build_request_log_context():
     return RUNTIME_LOG_CONTEXT.with_run(
         build_run_id(),
@@ -368,6 +424,7 @@ def handle_request():
         return "OK - use POST to execute strategy", 200
 
     log_context = build_request_log_context()
+    report = build_execution_report(log_context)
     try:
         log_runtime_event(
             log_context,
@@ -381,6 +438,11 @@ def handle_request():
                 "market_closed",
                 message="Market closed; skip strategy execution",
             )
+            finalize_runtime_report(
+                report,
+                status="skipped",
+                diagnostics={"skip_reason": "market_closed"},
+            )
             return "Market Closed", 200
         log_runtime_event(
             log_context,
@@ -388,6 +450,11 @@ def handle_request():
             message="Starting strategy execution",
         )
         result = run_strategy_core()
+        finalize_runtime_report(
+            report,
+            status="ok",
+            diagnostics={"result": result},
+        )
         log_runtime_event(
             log_context,
             "strategy_cycle_completed",
@@ -396,6 +463,13 @@ def handle_request():
         )
         return result, 200
     except Exception as exc:
+        append_runtime_report_error(
+            report,
+            stage="strategy_cycle",
+            message=str(exc),
+            error_type=type(exc).__name__,
+        )
+        finalize_runtime_report(report, status="error")
         log_runtime_event(
             log_context,
             "strategy_cycle_failed",
@@ -408,6 +482,12 @@ def handle_request():
         send_tg_message(error_msg)
         print(error_msg, flush=True)
         return "Error", 500
+    finally:
+        try:
+            report_path = persist_execution_report(report)
+            print(f"execution_report {report_path}", flush=True)
+        except Exception as persist_exc:
+            print(f"failed to persist execution report: {persist_exc}", flush=True)
 
 
 @app.route("/health", methods=["GET"])

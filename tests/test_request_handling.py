@@ -59,18 +59,79 @@ def test_handle_request_emits_structured_runtime_events(strategy_module, monkeyp
     assert observed[0][2]["http_method"] == "POST"
 
 
+def test_handle_request_persists_machine_readable_report(strategy_module, monkeypatch):
+    observed = {}
+
+    monkeypatch.setattr(strategy_module, "build_run_id", lambda: "run-001")
+    monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: True)
+    monkeypatch.setattr(strategy_module, "run_strategy_core", lambda: "OK - executed")
+    monkeypatch.setattr(
+        strategy_module,
+        "persist_execution_report",
+        lambda report: observed.setdefault("report", dict(report)) or "/tmp/runtime-report.json",
+    )
+
+    with strategy_module.app.test_request_context("/", method="POST"):
+        body, status = strategy_module.handle_request()
+
+    assert status == 200
+    assert body == "OK - executed"
+    assert observed["report"]["status"] == "ok"
+    assert observed["report"]["strategy_profile"] == strategy_module.STRATEGY_PROFILE
+    assert observed["report"]["run_source"] == "cloud_run"
+    assert observed["report"]["account_scope"] == strategy_module.ACCOUNT_GROUP
+    assert observed["report"]["summary"]["signal_source"] == strategy_module.STRATEGY_SIGNAL_SOURCE
+
+
 def test_handle_request_post_returns_market_closed_when_schedule_empty(strategy_module, monkeypatch):
+    observed = {}
+
     def fail_if_called():
         raise AssertionError("Closed market should not execute strategy")
 
     monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: False)
     monkeypatch.setattr(strategy_module, "run_strategy_core", fail_if_called)
+    monkeypatch.setattr(
+        strategy_module,
+        "persist_execution_report",
+        lambda report: observed.setdefault("report", dict(report)) or "/tmp/runtime-report.json",
+    )
 
     with strategy_module.app.test_request_context("/", method="POST"):
         body, status = strategy_module.handle_request()
 
     assert status == 200
     assert body == "Market Closed"
+    assert observed["report"]["status"] == "skipped"
+    assert observed["report"]["diagnostics"]["skip_reason"] == "market_closed"
+
+
+def test_handle_request_error_persists_machine_readable_report(strategy_module, monkeypatch):
+    observed = {"messages": []}
+
+    monkeypatch.setattr(strategy_module, "build_run_id", lambda: "run-001")
+    monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: True)
+    monkeypatch.setattr(
+        strategy_module,
+        "run_strategy_core",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    monkeypatch.setattr(
+        strategy_module,
+        "persist_execution_report",
+        lambda report: observed.setdefault("report", dict(report)) or "/tmp/runtime-report.json",
+    )
+    monkeypatch.setattr(strategy_module, "send_tg_message", lambda message: observed["messages"].append(message))
+
+    with strategy_module.app.test_request_context("/", method="POST"):
+        body, status = strategy_module.handle_request()
+
+    assert status == 500
+    assert body == "Error"
+    assert observed["report"]["status"] == "error"
+    assert observed["report"]["errors"][0]["stage"] == "strategy_cycle"
+    assert observed["report"]["errors"][0]["error_type"] == "RuntimeError"
+    assert len(observed["messages"]) == 1
 
 
 def test_run_strategy_core_allows_multiple_runs_in_same_process(strategy_module, monkeypatch):

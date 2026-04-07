@@ -29,6 +29,7 @@ jobs:
       IBKR_STRATEGY_CONFIG_PATH: ${{ vars.IBKR_STRATEGY_CONFIG_PATH }}
       IBKR_RECONCILIATION_OUTPUT_PATH: ${{ vars.IBKR_RECONCILIATION_OUTPUT_PATH }}
       IBKR_DRY_RUN_ONLY: ${{ vars.IBKR_DRY_RUN_ONLY }}
+      EXECUTION_REPORT_GCS_URI: ${{ vars.EXECUTION_REPORT_GCS_URI }}
       IB_GATEWAY_ZONE: ${{ vars.IB_GATEWAY_ZONE }}
       IB_GATEWAY_IP_MODE: ${{ vars.IB_GATEWAY_IP_MODE }}
       GLOBAL_TELEGRAM_CHAT_ID: ${{ vars.GLOBAL_TELEGRAM_CHAT_ID }}
@@ -170,6 +171,12 @@ jobs:
             env_pairs+=("IBKR_DRY_RUN_ONLY=${IBKR_DRY_RUN_ONLY}")
           else
             remove_env_vars+=("IBKR_DRY_RUN_ONLY")
+          fi
+
+          if [ -n "${EXECUTION_REPORT_GCS_URI:-}" ]; then
+            env_pairs+=("EXECUTION_REPORT_GCS_URI=${EXECUTION_REPORT_GCS_URI}")
+          else
+            remove_env_vars+=("EXECUTION_REPORT_GCS_URI")
           fi
 
           gcloud_args=(

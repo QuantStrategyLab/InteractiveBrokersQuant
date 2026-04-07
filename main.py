@@ -32,6 +32,12 @@ from application.execution_service import (
 from application.rebalance_service import run_strategy_core as run_rebalance_cycle
 from decision_mapper import map_strategy_decision
 from entrypoints.cloud_run import is_market_open_today
+from runtime_logging import (
+    RuntimeLogContext,
+    build_run_id,
+    emit_runtime_log,
+    extract_cloud_trace,
+)
 from runtime_config_support import (
     load_platform_runtime_settings,
     resolve_ib_gateway_ip_mode,
@@ -131,6 +137,7 @@ STRATEGY_PROFILE = RUNTIME_SETTINGS.strategy_profile
 ACCOUNT_GROUP = RUNTIME_SETTINGS.account_group
 SERVICE_NAME = RUNTIME_SETTINGS.service_name
 ACCOUNT_IDS = RUNTIME_SETTINGS.account_ids
+PROJECT_ID = RUNTIME_SETTINGS.project_id
 
 STRATEGY_RUNTIME = load_strategy_runtime(
     STRATEGY_PROFILE,
@@ -180,6 +187,17 @@ SELL_SETTLE_DELAY_SEC = 3
 HIST_DATA_PACING_SEC = 0.5
 
 SEPARATOR = "━━━━━━━━━━━━━━━━━━"
+RUNTIME_LOG_CONTEXT = RuntimeLogContext(
+    platform="interactive_brokers",
+    deploy_target="cloud_run",
+    service_name=SERVICE_NAME or os.getenv("K_SERVICE", "interactive-brokers-platform"),
+    strategy_profile=STRATEGY_PROFILE,
+    account_scope=ACCOUNT_GROUP,
+    account_group=ACCOUNT_GROUP,
+    project_id=PROJECT_ID,
+    instance_name=RUNTIME_SETTINGS.ib_gateway_instance_name,
+    extra_fields={"account_ids": list(ACCOUNT_IDS)},
+)
 
 def t(key, **kwargs):
     return build_translator(NOTIFY_LANG)(key, **kwargs)
@@ -196,6 +214,25 @@ def send_tg_message(message):
 
 def connect_ib():
     return ibkr_connect_ib(IB_HOST, IB_PORT, IB_CLIENT_ID)
+
+
+def log_runtime_event(log_context, event, **fields):
+    return emit_runtime_log(
+        log_context,
+        event,
+        printer=lambda line: print(line, flush=True),
+        **fields,
+    )
+
+
+def build_request_log_context():
+    return RUNTIME_LOG_CONTEXT.with_run(
+        build_run_id(),
+        trace=extract_cloud_trace(
+            PROJECT_ID,
+            request.headers.get("X-Cloud-Trace-Context"),
+        ),
+    )
 
 
 def resolve_run_as_of_date() -> pd.Timestamp:
@@ -330,12 +367,43 @@ def handle_request():
     if request.method == "GET":
         return "OK - use POST to execute strategy", 200
 
+    log_context = build_request_log_context()
     try:
+        log_runtime_event(
+            log_context,
+            "strategy_cycle_received",
+            message="Received strategy execution request",
+            http_method=request.method,
+        )
         if not is_market_open_today():
+            log_runtime_event(
+                log_context,
+                "market_closed",
+                message="Market closed; skip strategy execution",
+            )
             return "Market Closed", 200
+        log_runtime_event(
+            log_context,
+            "strategy_cycle_started",
+            message="Starting strategy execution",
+        )
         result = run_strategy_core()
+        log_runtime_event(
+            log_context,
+            "strategy_cycle_completed",
+            message="Strategy execution completed",
+            result=result,
+        )
         return result, 200
-    except Exception:
+    except Exception as exc:
+        log_runtime_event(
+            log_context,
+            "strategy_cycle_failed",
+            message="Strategy execution failed",
+            severity="ERROR",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
         error_msg = f"{t('error_title')}\n{traceback.format_exc()}"
         send_tg_message(error_msg)
         print(error_msg, flush=True)

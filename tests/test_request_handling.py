@@ -29,6 +29,36 @@ def test_handle_request_post_executes_on_market_day(strategy_module, monkeypatch
     assert observed["called"] is True
 
 
+def test_handle_request_emits_structured_runtime_events(strategy_module, monkeypatch):
+    observed = []
+
+    monkeypatch.setattr(strategy_module, "build_run_id", lambda: "run-001")
+    monkeypatch.setattr(
+        strategy_module,
+        "emit_runtime_log",
+        lambda context, event, **fields: observed.append((context.run_id, event, fields)),
+    )
+    monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: True)
+    monkeypatch.setattr(strategy_module, "run_strategy_core", lambda: "OK - executed")
+
+    with strategy_module.app.test_request_context(
+        "/",
+        method="POST",
+        headers={"X-Cloud-Trace-Context": "trace-123/1;o=1"},
+    ):
+        body, status = strategy_module.handle_request()
+
+    assert status == 200
+    assert body == "OK - executed"
+    assert [event for _run_id, event, _fields in observed] == [
+        "strategy_cycle_received",
+        "strategy_cycle_started",
+        "strategy_cycle_completed",
+    ]
+    assert all(run_id == "run-001" for run_id, _event, _fields in observed)
+    assert observed[0][2]["http_method"] == "POST"
+
+
 def test_handle_request_post_returns_market_closed_when_schedule_empty(strategy_module, monkeypatch):
     def fail_if_called():
         raise AssertionError("Closed market should not execute strategy")

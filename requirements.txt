@@ -1,7 +1,7 @@
 flask
 gunicorn
-quant-platform-kit @ git+https://github.com/QuantStrategyLab/QuantPlatformKit.git@v0.7.4  # quote fallback hotfix
-us-equity-strategies @ git+https://github.com/QuantStrategyLab/UsEquityStrategies.git@v0.7.4
+quant-platform-kit @ git+https://github.com/QuantStrategyLab/QuantPlatformKit.git@v0.7.5  # quote fallback hotfix
+us-equity-strategies @ git+https://github.com/QuantStrategyLab/UsEquityStrategies.git@v0.7.5
 pandas
 numpy
 requests

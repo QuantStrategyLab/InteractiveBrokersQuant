@@ -247,6 +247,10 @@ class LoadedStrategyRuntime:
                 },
             )
             return StrategyEvaluationResult(decision=decision, metadata=metadata)
+        snapshot_close_map = self._build_snapshot_close_map(
+            feature_snapshot,
+            managed_symbols=managed_symbols,
+        )
         metadata = {
             "strategy_profile": self.profile,
             "feature_snapshot_path": self.runtime_settings.feature_snapshot_path,
@@ -256,10 +260,41 @@ class LoadedStrategyRuntime:
             "dry_run_only": self.runtime_settings.dry_run_only,
             "trade_date": run_as_of.date().isoformat(),
             "managed_symbols": managed_symbols,
+            "dry_run_price_fallbacks": snapshot_close_map,
             "status_icon": self.status_icon,
             **guard_metadata,
         }
         return StrategyEvaluationResult(decision=decision, metadata=metadata)
+
+    def _build_snapshot_close_map(
+        self,
+        feature_snapshot,
+        *,
+        managed_symbols: tuple[str, ...],
+    ) -> dict[str, float]:
+        if not managed_symbols:
+            return {}
+        try:
+            frame = pd.DataFrame(feature_snapshot)
+        except Exception:
+            return {}
+        if frame.empty or "symbol" not in frame.columns or "close" not in frame.columns:
+            return {}
+        frame = frame.copy()
+        frame["symbol"] = frame["symbol"].astype(str).str.strip().str.upper()
+        frame = frame[frame["symbol"].isin({str(symbol).strip().upper() for symbol in managed_symbols})]
+        if frame.empty:
+            return {}
+        close_series = pd.to_numeric(frame["close"], errors="coerce")
+        frame = frame.assign(close_numeric=close_series)
+        frame = frame[frame["close_numeric"].notna() & frame["close_numeric"].gt(0)]
+        if frame.empty:
+            return {}
+        deduped = frame.drop_duplicates(subset=["symbol"], keep="last")
+        return {
+            str(row["symbol"]): float(row["close_numeric"])
+            for _, row in deduped.iterrows()
+        }
 
     def _extract_managed_symbols(
         self,

@@ -253,3 +253,58 @@ def test_global_etf_rotation_keeps_default_cash_reserve(strategy_module_factory)
     )
 
     assert module.CASH_RESERVE_RATIO == pytest.approx(0.03)
+
+
+def test_compute_signals_exposes_dry_run_price_fallbacks(strategy_module_factory, tmp_path):
+    pytest.importorskip("pandas")
+
+    snapshot_path = tmp_path / "snapshot.csv"
+    config_path = tmp_path / "tech_pullback_cash_buffer.json"
+    snapshot_path.write_text(
+        "\n".join(
+            [
+                "as_of,symbol,sector,close,adv20_usd,history_days,mom_6_1,mom_12_1,sma20_gap,sma50_gap,sma200_gap,ma50_over_ma200,vol_63,maxdd_126,breakout_252,dist_63_high,dist_126_high,rebound_20,base_eligible",
+                "2026-03-31,QQQ,benchmark,500,1000000000,400,0.20,0.30,0.03,0.05,0.08,0.04,0.22,-0.12,-0.01,-0.03,-0.05,0.04,false",
+                "2026-03-31,BOXX,defense,101,20000000,400,0.02,0.04,0.00,0.00,0.01,0.00,0.03,-0.01,0.00,-0.01,-0.01,0.00,false",
+                "2026-03-31,AAPL,Information Technology,200,150000000,400,0.20,0.35,0.03,0.05,0.10,0.05,0.18,-0.08,-0.01,-0.03,-0.05,0.05,true",
+                "2026-03-31,MSFT,Information Technology,350,150000000,400,0.18,0.33,0.03,0.05,0.09,0.04,0.17,-0.09,-0.02,-0.04,-0.06,0.04,true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "name": "tech_pullback_cash_buffer",
+                "family": "tech_heavy_pullback",
+                "branch_role": "cash-buffered parallel branch",
+                "benchmark_symbol": "QQQ",
+                "holdings_count": 2,
+                "single_name_cap": 0.5,
+                "sector_cap": 1.0,
+                "hold_bonus": 0.0,
+                "min_adv20_usd": 1.0,
+                "normalization": "universe_cross_sectional",
+                "score_template": "balanced_pullback",
+                "sector_whitelist": ["Information Technology"],
+                "breadth_thresholds": {"soft": 0.55, "hard": 0.35},
+                "exposures": {"risk_on": 1.0, "soft_defense": 1.0, "hard_defense": 0.0},
+                "execution_cash_reserve_ratio": 0.0,
+                "residual_proxy": "simple_excess_return_vs_QQQ",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_cash_buffer_manifest(snapshot_path, config_path, snapshot_as_of="2026-03-31")
+
+    module = strategy_module_factory(
+        STRATEGY_PROFILE="tech_pullback_cash_buffer",
+        IBKR_FEATURE_SNAPSHOT_PATH=str(snapshot_path),
+        IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH=str(Path(f"{snapshot_path}.manifest.json")),
+        IBKR_STRATEGY_CONFIG_PATH=str(config_path),
+        IBKR_RUN_AS_OF_DATE="2026-04-01",
+    )
+    result = module.compute_signals(None, set())
+
+    assert result[4]["dry_run_price_fallbacks"]["BOXX"] == pytest.approx(101.0)
+    assert result[4]["dry_run_price_fallbacks"]["AAPL"] == pytest.approx(200.0)

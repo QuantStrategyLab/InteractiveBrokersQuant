@@ -364,3 +364,45 @@ def test_execute_rebalance_blocks_when_material_target_has_no_buying_power():
     assert summary["no_op_reason"] == "insufficient_buying_power:VOO"
     assert summary["skipped_reasons"] == ["insufficient_buying_power:VOO"]
     assert "failed insufficient_buying_power:VOO" in trade_logs[-1]
+
+
+def test_execute_rebalance_uses_snapshot_prices_for_dry_run_when_quotes_missing(tmp_path):
+    class FakeIB:
+        def openTrades(self):
+            return []
+
+        def fills(self):
+            return []
+
+        def accountValues(self):
+            return [SimpleNamespace(tag="AvailableFunds", currency="USD", value="5000")]
+
+    trade_logs, summary = execute_rebalance(
+        FakeIB(),
+        {"VOO": 0.6, "BOXX": 0.4},
+        {},
+        {"equity": 1000.0, "buying_power": 1000.0},
+        fetch_quote_snapshots=lambda *_args, **_kwargs: {},
+        submit_order_intent=lambda *_args, **_kwargs: None,
+        order_intent_cls=OrderIntent,
+        translator=translate,
+        strategy_symbols=["VOO", "BOXX"],
+        strategy_profile="tech_pullback_cash_buffer",
+        signal_metadata={
+            "trade_date": "2026-04-01",
+            "snapshot_as_of": "2026-03-31",
+            "dry_run_price_fallbacks": {"VOO": 100.0, "BOXX": 100.0},
+        },
+        dry_run_only=True,
+        cash_reserve_ratio=0.0,
+        rebalance_threshold_ratio=0.02,
+        limit_buy_premium=1.005,
+        sell_settle_delay_sec=0,
+        execution_lock_dir=tmp_path,
+        return_summary=True,
+    )
+
+    assert summary["execution_status"] == "executed"
+    assert len(summary["orders_submitted"]) == 2
+    assert any(log.startswith("DRY_RUN buy VOO") for log in trade_logs)
+    assert any(log.startswith("DRY_RUN buy BOXX") for log in trade_logs)

@@ -13,10 +13,26 @@ from typing import Any
 import pandas as pd
 
 
-def get_market_prices(ib, symbols, *, fetch_quote_snapshots):
+def get_market_prices(
+    ib,
+    symbols,
+    *,
+    fetch_quote_snapshots,
+    dry_run_only: bool = False,
+    snapshot_price_fallbacks: dict[str, float] | None = None,
+):
     """Fetch market prices for multiple symbols in one pass."""
     quotes = fetch_quote_snapshots(ib, symbols)
-    return {symbol: quote.last_price for symbol, quote in quotes.items()}
+    prices = {symbol: quote.last_price for symbol, quote in quotes.items()}
+    if dry_run_only and snapshot_price_fallbacks:
+        for symbol in symbols:
+            normalized = str(symbol).strip().upper()
+            if normalized in prices:
+                continue
+            fallback_price = snapshot_price_fallbacks.get(normalized)
+            if fallback_price and float(fallback_price) > 0:
+                prices[normalized] = float(fallback_price)
+    return prices
 
 
 def check_order_submitted(report, *, translator):
@@ -364,7 +380,18 @@ def execute_rebalance(
     if strategy_symbols:
         all_symbols = all_symbols & set(strategy_symbols)
 
-    prices = get_market_prices(ib, all_symbols, fetch_quote_snapshots=fetch_quote_snapshots)
+    snapshot_price_fallbacks = {
+        str(symbol).strip().upper(): float(price)
+        for symbol, price in dict(signal_metadata.get("dry_run_price_fallbacks") or {}).items()
+        if price is not None
+    }
+    prices = get_market_prices(
+        ib,
+        all_symbols,
+        fetch_quote_snapshots=fetch_quote_snapshots,
+        dry_run_only=dry_run_only,
+        snapshot_price_fallbacks=snapshot_price_fallbacks,
+    )
 
     current_mv = {}
     for symbol in all_symbols:

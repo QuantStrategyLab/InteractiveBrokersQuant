@@ -1,3 +1,8 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from runtime_config_support import (
@@ -19,6 +24,7 @@ MINIMAL_GROUP_JSON = (
     '{"groups":{"default":{"ib_gateway_instance_name":"ib-gateway",'
     '"ib_gateway_mode":"paper","ib_client_id":1}}}'
 )
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "print_strategy_profile_status.py"
 
 
 def test_load_platform_runtime_settings_requires_strategy_profile(monkeypatch):
@@ -206,6 +212,31 @@ def test_platform_profile_status_matrix_matches_current_ibkr_rollout():
     assert by_profile["semiconductor_rotation_income"]["display_name"] == "SOXL/SOXX Semiconductor Trend Income"
     assert by_profile["semiconductor_rotation_income"]["eligible"] is True
     assert by_profile["semiconductor_rotation_income"]["enabled"] is True
+
+
+def test_print_strategy_profile_status_json_matches_registry():
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--json"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) == get_platform_profile_status_matrix()
+
+
+def test_print_strategy_profile_status_table_contains_expected_headers():
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "canonical_profile" in result.stdout
+    assert "display_name" in result.stdout
+    assert "global_etf_rotation" in result.stdout
+    assert "QQQ Tech Enhancement" in result.stdout
 
 
 

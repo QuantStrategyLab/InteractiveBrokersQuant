@@ -235,7 +235,9 @@ def test_market_history_runtime_uses_canonical_market_history_key():
             captured["market_data"] = dict(ctx.market_data)
             return StrategyDecision()
 
-    loader = lambda *_args, **_kwargs: None
+    def loader(*_args, **_kwargs):
+        return None
+
     runtime = strategy_runtime_module.LoadedStrategyRuntime(
         entrypoint=FakeEntrypoint(),
         runtime_adapter=StrategyRuntimeAdapter(status_icon="🐤"),

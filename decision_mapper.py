@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from quant_platform_kit.strategy_contracts import StrategyDecision
+from quant_platform_kit.strategy_contracts import (
+    StrategyDecision,
+    build_allocation_intent,
+    build_allocation_payload,
+)
 
 
 _EMERGENCY_FLAGS = frozenset({"emergency", "hard_defense"})
@@ -25,10 +29,15 @@ def _derive_target_weights(decision: StrategyDecision) -> dict[str, float]:
 def _derive_managed_symbols(
     decision: StrategyDecision,
     runtime_metadata: Mapping[str, Any],
+    *,
+    allocation_payload: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     explicit = runtime_metadata.get("managed_symbols")
     if explicit:
         return tuple(str(symbol) for symbol in explicit)
+    allocation_symbols = allocation_payload.get("strategy_symbols") if allocation_payload else None
+    if allocation_symbols:
+        return tuple(str(symbol) for symbol in allocation_symbols)
     return tuple(position.symbol for position in decision.positions)
 
 
@@ -93,6 +102,15 @@ def map_strategy_decision(
     risk_flags = tuple(str(flag) for flag in decision.risk_flags)
     no_execute = bool(_NO_EXECUTE_FLAGS & set(risk_flags))
     target_weights = None if no_execute else _derive_target_weights(decision)
+    allocation_payload = None
+    if not no_execute and decision.positions:
+        allocation_payload = build_allocation_payload(
+            build_allocation_intent(
+                decision,
+                strategy_profile=strategy_profile,
+                strategy_symbols_order="risk_safe_income",
+            )
+        )
     signal_desc = _derive_signal_description(decision, runtime_metadata)
     status_desc = _derive_status_description(decision, runtime_metadata)
     is_emergency = bool(_EMERGENCY_FLAGS & set(risk_flags))
@@ -100,11 +118,17 @@ def map_strategy_decision(
     metadata: dict[str, Any] = {**runtime_metadata, **diagnostics}
     metadata.setdefault("strategy_profile", strategy_profile)
     metadata.setdefault("status_icon", "🐤")
-    metadata.setdefault("managed_symbols", _derive_managed_symbols(decision, runtime_metadata))
+    metadata.setdefault(
+        "managed_symbols",
+        _derive_managed_symbols(decision, runtime_metadata, allocation_payload=allocation_payload),
+    )
     safe_haven_symbol = _derive_safe_haven_symbol(decision, runtime_metadata)
     if safe_haven_symbol:
         metadata.setdefault("safe_haven_symbol", safe_haven_symbol)
     metadata.setdefault("risk_flags", risk_flags)
     metadata.setdefault("actionable", not no_execute)
+    if allocation_payload:
+        metadata.setdefault("target_mode", allocation_payload["target_mode"])
+        metadata.setdefault("allocation", allocation_payload)
 
     return target_weights, signal_desc, is_emergency, status_desc, metadata

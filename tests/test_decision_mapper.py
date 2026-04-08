@@ -28,6 +28,11 @@ def test_map_strategy_decision_maps_weight_positions_and_safe_haven():
     assert metadata["safe_haven_symbol"] == "BOXX"
     assert metadata["managed_symbols"] == ("AAA", "BOXX")
     assert metadata["status_icon"] == "🧲"
+    assert metadata["target_mode"] == "weight"
+    assert metadata["allocation"]["target_mode"] == "weight"
+    assert metadata["allocation"]["strategy_symbols"] == ("AAA", "BOXX")
+    assert metadata["allocation"]["targets"] == {"AAA": 0.6, "BOXX": 0.4}
+    assert metadata["allocation"]["positions"][1]["role"] == "safe_haven"
 
 
 def test_map_strategy_decision_returns_noop_when_flagged_no_execute():
@@ -55,3 +60,4 @@ def test_map_strategy_decision_returns_noop_when_flagged_no_execute():
     assert status_desc == "fail_closed | reason=feature_snapshot_path_missing"
     assert metadata["actionable"] is False
     assert metadata["snapshot_guard_decision"] == "fail_closed"
+    assert "allocation" not in metadata

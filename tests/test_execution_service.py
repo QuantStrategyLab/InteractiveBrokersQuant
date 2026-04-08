@@ -22,6 +22,7 @@ def translate(key, **kwargs):
         "same_day_fills_detected": "same_day_fills_detected profile={profile} mode={mode} symbols={symbols} trade_date={trade_date}",
         "same_day_execution_locked": "same_day_execution_locked profile={profile} mode={mode} trade_date={trade_date} snapshot_date={snapshot_date} target_hash={target_hash} lock_path={lock_path}",
         "execution_lock_acquired": "execution_lock_acquired mode={mode} trade_date={trade_date} snapshot_date={snapshot_date} lock_path={lock_path}",
+        "dry_run_snapshot_prices": "dry_run_snapshot_prices count={count} symbols={symbols}",
         "no_equity": "❌ No equity",
     }
     template = templates[key]
@@ -404,5 +405,10 @@ def test_execute_rebalance_uses_snapshot_prices_for_dry_run_when_quotes_missing(
 
     assert summary["execution_status"] == "executed"
     assert len(summary["orders_submitted"]) == 2
+    assert summary["snapshot_price_fallback_used"] is True
+    assert summary["snapshot_price_fallback_count"] == 2
+    assert set(summary["snapshot_price_fallback_symbols"]) == {"VOO", "BOXX"}
+    assert summary["price_source_mode"] == "mixed_market_quote_snapshot_close"
+    assert any(log.startswith("dry_run_snapshot_prices count=2") for log in trade_logs)
     assert any(log.startswith("DRY_RUN buy VOO") for log in trade_logs)
     assert any(log.startswith("DRY_RUN buy BOXX") for log in trade_logs)

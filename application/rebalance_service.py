@@ -105,6 +105,7 @@ def run_strategy_core(
     translator,
     separator,
     reconciliation_output_path=None,
+    result_hook=None,
 ):
     ib = None
     try:
@@ -161,6 +162,17 @@ def run_strategy_core(
             message = f"{translator('heartbeat_title')}\n{dashboard}\n{separator}\n{no_op_text}"
             send_tg_message(message)
             print(message, flush=True)
+            if callable(result_hook):
+                result_hook(
+                    {
+                        "result": "OK - heartbeat",
+                        "signal_metadata": dict(signal_metadata or {}),
+                        "target_weights": None,
+                        "execution_summary": None,
+                        "reconciliation_record": dict(record),
+                        "reconciliation_record_path": str(record_path),
+                    }
+                )
             return "OK - heartbeat"
 
         execution_result = execute_rebalance(
@@ -213,6 +225,17 @@ def run_strategy_core(
 
         send_tg_message(message)
         print(message, flush=True)
+        if callable(result_hook):
+            result_hook(
+                {
+                    "result": "OK - executed",
+                    "signal_metadata": dict(signal_metadata or {}),
+                    "target_weights": dict(target_weights or {}),
+                    "execution_summary": dict(execution_summary or {}),
+                    "reconciliation_record": dict(record),
+                    "reconciliation_record_path": str(record_path),
+                }
+            )
         return "OK - executed"
     finally:
         if ib is not None and ib.isConnected():

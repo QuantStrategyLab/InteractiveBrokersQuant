@@ -83,6 +83,47 @@ def test_handle_request_persists_machine_readable_report(strategy_module, monkey
     assert observed["report"]["summary"]["signal_source"] == strategy_module.STRATEGY_SIGNAL_SOURCE
 
 
+def test_handle_request_enriches_runtime_report_with_cycle_details(strategy_module, monkeypatch):
+    observed = {}
+
+    monkeypatch.setattr(strategy_module, "build_run_id", lambda: "run-001")
+    monkeypatch.setattr(strategy_module, "is_market_open_today", lambda: True)
+
+    def fake_run_strategy_core():
+        strategy_module.LAST_CYCLE_DETAILS = {
+            "execution_summary": {
+                "execution_status": "executed",
+                "orders_submitted": [{"symbol": "AAA"}],
+                "orders_skipped": [],
+                "price_source_mode": "mixed_market_quote_snapshot_close",
+                "snapshot_price_fallback_used": True,
+                "snapshot_price_fallback_count": 1,
+                "snapshot_price_fallback_symbols": ["AAA"],
+            },
+            "reconciliation_record_path": "/tmp/reconciliation.json",
+        }
+        return "OK - executed"
+
+    monkeypatch.setattr(strategy_module, "run_strategy_core", fake_run_strategy_core)
+    monkeypatch.setattr(
+        strategy_module,
+        "persist_execution_report",
+        lambda report: observed.setdefault("report", dict(report)) or "/tmp/runtime-report.json",
+    )
+
+    with strategy_module.app.test_request_context("/", method="POST"):
+        body, status = strategy_module.handle_request()
+
+    assert status == 200
+    assert body == "OK - executed"
+    assert observed["report"]["summary"]["execution_status"] == "executed"
+    assert observed["report"]["summary"]["snapshot_price_fallback_used"] is True
+    assert observed["report"]["summary"]["snapshot_price_fallback_count"] == 1
+    assert observed["report"]["diagnostics"]["price_source_mode"] == "mixed_market_quote_snapshot_close"
+    assert observed["report"]["diagnostics"]["snapshot_price_fallback_symbols"] == ["AAA"]
+    assert observed["report"]["artifacts"]["reconciliation_record_path"] == "/tmp/reconciliation.json"
+
+
 def test_handle_request_post_returns_market_closed_when_schedule_empty(strategy_module, monkeypatch):
     observed = {}
 

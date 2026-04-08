@@ -18,21 +18,10 @@ def get_market_prices(
     symbols,
     *,
     fetch_quote_snapshots,
-    dry_run_only: bool = False,
-    snapshot_price_fallbacks: dict[str, float] | None = None,
 ):
     """Fetch market prices for multiple symbols in one pass."""
     quotes = fetch_quote_snapshots(ib, symbols)
-    prices = {symbol: quote.last_price for symbol, quote in quotes.items()}
-    if dry_run_only and snapshot_price_fallbacks:
-        for symbol in symbols:
-            normalized = str(symbol).strip().upper()
-            if normalized in prices:
-                continue
-            fallback_price = snapshot_price_fallbacks.get(normalized)
-            if fallback_price and float(fallback_price) > 0:
-                prices[normalized] = float(fallback_price)
-    return prices
+    return {symbol: quote.last_price for symbol, quote in quotes.items()}
 
 
 def check_order_submitted(report, *, translator):
@@ -190,6 +179,38 @@ def _sanitize_token(value: str | None) -> str:
 def _display_text(value: Any, *, fallback: str) -> str:
     text = str(value).strip() if value is not None else ""
     return text or fallback
+
+
+def _apply_snapshot_price_fallbacks(
+    prices: dict[str, float],
+    symbols,
+    *,
+    dry_run_only: bool,
+    snapshot_price_fallbacks: dict[str, float] | None,
+) -> tuple[dict[str, float], tuple[str, ...]]:
+    if not dry_run_only or not snapshot_price_fallbacks:
+        return dict(prices), ()
+    resolved = dict(prices)
+    fallback_symbols: list[str] = []
+    for symbol in symbols:
+        normalized = str(symbol).strip().upper()
+        if normalized in resolved:
+            continue
+        fallback_price = snapshot_price_fallbacks.get(normalized)
+        if fallback_price and float(fallback_price) > 0:
+            resolved[normalized] = float(fallback_price)
+            fallback_symbols.append(normalized)
+    return resolved, tuple(fallback_symbols)
+
+
+def _format_symbol_preview(symbols: tuple[str, ...], *, limit: int = 3) -> str:
+    if not symbols:
+        return ""
+    shown = [str(symbol).strip().upper() for symbol in symbols[:limit]]
+    remaining = len(symbols) - len(shown)
+    if remaining > 0:
+        shown.append(f"+{remaining}")
+    return ",".join(shown)
 
 
 def _resolve_execution_lock_path(
@@ -364,6 +385,10 @@ def execute_rebalance(
         "residual_cash_estimate": float(account_values.get("buying_power", 0.0) or 0.0),
         "current_stock_weight": 0.0,
         "current_safe_haven_weight": 0.0,
+        "price_source_mode": "market_quote",
+        "snapshot_price_fallback_used": False,
+        "snapshot_price_fallback_symbols": [],
+        "snapshot_price_fallback_count": 0,
         "lock_path": None,
     }
     if equity <= 0:
@@ -389,9 +414,18 @@ def execute_rebalance(
         ib,
         all_symbols,
         fetch_quote_snapshots=fetch_quote_snapshots,
+    )
+    prices, snapshot_price_fallback_symbols = _apply_snapshot_price_fallbacks(
+        prices,
+        all_symbols,
         dry_run_only=dry_run_only,
         snapshot_price_fallbacks=snapshot_price_fallbacks,
     )
+    execution_summary["snapshot_price_fallback_used"] = bool(snapshot_price_fallback_symbols)
+    execution_summary["snapshot_price_fallback_symbols"] = list(snapshot_price_fallback_symbols)
+    execution_summary["snapshot_price_fallback_count"] = len(snapshot_price_fallback_symbols)
+    if snapshot_price_fallback_symbols:
+        execution_summary["price_source_mode"] = "mixed_market_quote_snapshot_close"
 
     current_mv = {}
     for symbol in all_symbols:
@@ -459,6 +493,14 @@ def execute_rebalance(
             ]
         )
     )
+    if snapshot_price_fallback_symbols:
+        trade_logs.append(
+            translator(
+                "dry_run_snapshot_prices",
+                count=len(snapshot_price_fallback_symbols),
+                symbols=_format_symbol_preview(snapshot_price_fallback_symbols),
+            )
+        )
     trade_logs.extend(_format_target_lines(target_weights, current_mv, equity, translator=translator))
 
     missing_price_symbols: list[str] = []

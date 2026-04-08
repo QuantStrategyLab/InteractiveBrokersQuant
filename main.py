@@ -204,6 +204,7 @@ RUNTIME_LOG_CONTEXT = RuntimeLogContext(
     instance_name=RUNTIME_SETTINGS.ib_gateway_instance_name,
     extra_fields={"account_ids": list(ACCOUNT_IDS)},
 )
+LAST_CYCLE_DETAILS: dict[str, object] = {}
 
 def t(key, **kwargs):
     return build_translator(NOTIFY_LANG)(key, **kwargs)
@@ -412,7 +413,9 @@ def execute_rebalance(
 # Main strategy runner
 # ---------------------------------------------------------------------------
 def run_strategy_core():
-    return run_rebalance_cycle(
+    global LAST_CYCLE_DETAILS
+    cycle_details: dict[str, object] = {}
+    result = run_rebalance_cycle(
         connect_ib=connect_ib,
         get_current_portfolio=get_current_portfolio,
         compute_signals=compute_signals,
@@ -421,7 +424,10 @@ def run_strategy_core():
         translator=t,
         separator=SEPARATOR,
         reconciliation_output_path=RECONCILIATION_OUTPUT_PATH,
+        result_hook=lambda payload: cycle_details.update(payload or {}),
     )
+    LAST_CYCLE_DETAILS = cycle_details
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +438,8 @@ def handle_request():
     if request.method == "GET":
         return "OK - use POST to execute strategy", 200
 
+    global LAST_CYCLE_DETAILS
+    LAST_CYCLE_DETAILS = {}
     log_context = build_request_log_context()
     report = build_execution_report(log_context)
     try:
@@ -459,10 +467,38 @@ def handle_request():
             message="Starting strategy execution",
         )
         result = run_strategy_core()
+        cycle_details = dict(LAST_CYCLE_DETAILS or {})
+        execution_summary = dict(cycle_details.get("execution_summary") or {})
+        reconciliation_record = dict(cycle_details.get("reconciliation_record") or {})
         finalize_runtime_report(
             report,
             status="ok",
-            diagnostics={"result": result},
+            summary={
+                "result": result,
+                "execution_status": execution_summary.get("execution_status") or reconciliation_record.get("execution_status"),
+                "no_op_reason": execution_summary.get("no_op_reason") or reconciliation_record.get("no_op_reason"),
+                "orders_submitted_count": len(execution_summary.get("orders_submitted") or reconciliation_record.get("orders_submitted") or ()),
+                "orders_skipped_count": len(execution_summary.get("orders_skipped") or reconciliation_record.get("orders_skipped") or ()),
+                "snapshot_price_fallback_used": bool(
+                    execution_summary.get("snapshot_price_fallback_used")
+                    or reconciliation_record.get("snapshot_price_fallback_used")
+                ),
+                "snapshot_price_fallback_count": int(
+                    execution_summary.get("snapshot_price_fallback_count")
+                    or reconciliation_record.get("snapshot_price_fallback_count")
+                    or 0
+                ),
+            },
+            diagnostics={
+                "result": result,
+                "price_source_mode": execution_summary.get("price_source_mode") or reconciliation_record.get("price_source_mode"),
+                "snapshot_price_fallback_symbols": execution_summary.get("snapshot_price_fallback_symbols")
+                or reconciliation_record.get("snapshot_price_fallback_symbols")
+                or [],
+            },
+            artifacts={
+                "reconciliation_record_path": cycle_details.get("reconciliation_record_path"),
+            },
         )
         log_runtime_event(
             log_context,

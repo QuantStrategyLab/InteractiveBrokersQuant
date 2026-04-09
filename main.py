@@ -111,15 +111,21 @@ def resolve_gce_instance_ip(instance_name, zone):
 
 def get_ib_host():
     """
-    Resolve IB Gateway host.
+    Resolve IB Gateway host lazily.
     - Read IB_GATEWAY_INSTANCE_NAME only
     - If IB_GATEWAY_ZONE is set: resolve instance name via Compute API
     - If IB_GATEWAY_ZONE is not set: use the configured instance name directly
     """
+    global IB_HOST
+
+    if IB_HOST:
+        return IB_HOST
+
     host = RUNTIME_SETTINGS.ib_gateway_instance_name
     zone = RUNTIME_SETTINGS.ib_gateway_zone
     if zone:
-        return resolve_gce_instance_ip(host, zone)
+        host = resolve_gce_instance_ip(host, zone)
+    IB_HOST = host
     return host
 
 
@@ -136,7 +142,7 @@ def get_ib_port():
 # Config
 # ---------------------------------------------------------------------------
 RUNTIME_SETTINGS = load_platform_runtime_settings(project_id_resolver=get_project_id)
-IB_HOST = get_ib_host()
+IB_HOST = None
 IB_PORT = get_ib_port()
 IB_CLIENT_ID = RUNTIME_SETTINGS.ib_client_id
 STRATEGY_PROFILE = RUNTIME_SETTINGS.strategy_profile
@@ -236,11 +242,12 @@ def send_tg_message(message):
 
 
 def connect_ib():
+    host = get_ib_host()
     print(
-        f"Connecting to IB gateway {IB_HOST}:{IB_PORT} (mode={RUNTIME_SETTINGS.ib_gateway_mode}, client_id={IB_CLIENT_ID})",
+        f"Connecting to IB gateway {host}:{IB_PORT} (mode={RUNTIME_SETTINGS.ib_gateway_mode}, client_id={IB_CLIENT_ID})",
         flush=True,
     )
-    return ibkr_connect_ib(IB_HOST, IB_PORT, IB_CLIENT_ID)
+    return ibkr_connect_ib(host, IB_PORT, IB_CLIENT_ID)
 
 
 def log_runtime_event(log_context, event, **fields):
@@ -284,7 +291,7 @@ def build_execution_report(log_context):
         },
         diagnostics={
             "strategy_config_source": FEATURE_RUNTIME_CONFIG_SOURCE,
-            "ib_gateway_host": IB_HOST,
+            "ib_gateway_host": get_ib_host(),
             "ib_gateway_port": IB_PORT,
             "ib_gateway_mode": RUNTIME_SETTINGS.ib_gateway_mode,
             "ib_gateway_ip_mode": RUNTIME_SETTINGS.ib_gateway_ip_mode,

@@ -37,7 +37,47 @@ def test_connect_ib_prepares_event_loop_before_connect(strategy_module, monkeypa
 
 
 def test_instance_name_alias_is_used_as_host(strategy_module):
+    assert strategy_module.IB_HOST is None
+    assert strategy_module.get_ib_host() == "127.0.0.1"
     assert strategy_module.IB_HOST == "127.0.0.1"
+
+
+def test_get_ib_host_resolves_lazily(strategy_module_factory, monkeypatch):
+    module = strategy_module_factory(
+        IB_GATEWAY_ZONE="us-central1-a",
+        IB_ACCOUNT_GROUP_CONFIG_JSON=(
+            '{"groups":{"default":{"ib_gateway_instance_name":"ib-gateway",'
+            '"ib_gateway_mode":"live","ib_client_id":1}}}'
+        ),
+    )
+
+    assert module.IB_HOST is None
+
+    fake_instance = types.SimpleNamespace(
+        network_interfaces=[
+            types.SimpleNamespace(
+                access_configs=[types.SimpleNamespace(nat_i_p="35.211.181.174")],
+                network_i_p="10.0.0.8",
+            )
+        ]
+    )
+
+    class FakeInstancesClient:
+        def get(self, project, zone, instance):
+            assert project == "test-project"
+            assert zone == "us-central1-a"
+            assert instance == "ib-gateway"
+            return fake_instance
+
+    monkeypatch.setattr(
+        module,
+        "compute_v1",
+        types.SimpleNamespace(InstancesClient=FakeInstancesClient),
+    )
+    monkeypatch.setattr(module, "get_project_id", lambda: "test-project")
+
+    assert module.get_ib_host() == "10.0.0.8"
+    assert module.IB_HOST == "10.0.0.8"
 
 
 def test_ib_gateway_mode_derives_paper_port(strategy_module_factory):

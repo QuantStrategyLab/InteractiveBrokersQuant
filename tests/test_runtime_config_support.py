@@ -282,7 +282,7 @@ def test_load_platform_runtime_settings_uses_bundled_tech_pullback_config_when_e
     settings = load_platform_runtime_settings(project_id_resolver=lambda: "project-1")
 
     assert settings.strategy_config_path is not None
-    assert settings.strategy_config_path.endswith("growth_pullback_tech_pullback_cash_buffer.json")
+    assert settings.strategy_config_path.endswith("growth_pullback_qqq_tech_enhancement.json")
     assert settings.strategy_config_source == "bundled_canonical_default"
 
 
@@ -313,7 +313,7 @@ def test_load_platform_runtime_settings_derives_artifact_paths_from_root(monkeyp
         tmp_path / "qqq_tech_enhancement" / "reconciliation"
     )
     assert settings.strategy_config_path is not None
-    assert settings.strategy_config_path.endswith("growth_pullback_tech_pullback_cash_buffer.json")
+    assert settings.strategy_config_path.endswith("growth_pullback_qqq_tech_enhancement.json")
     assert settings.strategy_config_source == "bundled_canonical_default"
 
 

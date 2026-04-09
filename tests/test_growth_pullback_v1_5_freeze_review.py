@@ -25,7 +25,7 @@ def test_canonical_config_export(tmp_path):
     center = module.gp.load_spec_config(CONFIGS_DIR / module.v14.CENTER_CONFIG_FILENAME)
     spec = module.build_canonical_spec(center, 'cash_buffer_a__hb10__base__adv50')
 
-    out = tmp_path / 'growth_pullback_tech_pullback_cash_buffer.json'
+    out = tmp_path / 'growth_pullback_qqq_tech_enhancement.json'
     module.save_canonical_spec(out, spec)
     payload = json.loads(out.read_text(encoding='utf-8'))
 

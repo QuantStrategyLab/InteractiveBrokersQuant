@@ -26,7 +26,7 @@ import backtest_stock_alpha_v1_robustness as robust  # noqa: E402
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
 DEFAULT_CONFIGS_DIR = SCRIPT_DIR / "configs"
 MAIN_COST_BPS = 5.0
-CANONICAL_CONFIG_FILENAME = "growth_pullback_tech_pullback_cash_buffer.json"
+CANONICAL_CONFIG_FILENAME = "growth_pullback_qqq_tech_enhancement.json"
 V14_SUMMARY_FILENAME = "growth_pullback_v1_4_cash_buffer_refinement.csv"
 V14_RECOMMENDATION_FILENAME = "growth_pullback_v1_4_recommendation.json"
 

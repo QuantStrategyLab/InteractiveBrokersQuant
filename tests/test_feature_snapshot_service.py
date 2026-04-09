@@ -96,7 +96,7 @@ class FeatureSnapshotServiceTest(unittest.TestCase):
                 required_columns=("as_of", "symbol", "sector", "mom_6_1"),
                 require_manifest=True,
                 expected_strategy_profile="qqq_tech_enhancement",
-                expected_config_name="tech_pullback_cash_buffer",
+                expected_config_name="qqq_tech_enhancement",
                 expected_contract_version="qqq_tech_enhancement.feature_snapshot.v1",
             )
 
@@ -136,7 +136,7 @@ class FeatureSnapshotServiceTest(unittest.TestCase):
                 required_columns=("as_of", "symbol", "sector", "mom_6_1"),
                 require_manifest=True,
                 expected_strategy_profile="qqq_tech_enhancement",
-                expected_config_name="tech_pullback_cash_buffer",
+                expected_config_name="qqq_tech_enhancement",
                 expected_config_path=str(config_path),
                 expected_contract_version="qqq_tech_enhancement.feature_snapshot.v1",
             )
@@ -212,7 +212,7 @@ class FeatureSnapshotServiceTest(unittest.TestCase):
                     required_columns=("as_of", "symbol", "sector", "mom_6_1"),
                     require_manifest=True,
                     expected_strategy_profile="qqq_tech_enhancement",
-                    expected_config_name="tech_pullback_cash_buffer",
+                    expected_config_name="qqq_tech_enhancement",
                     expected_config_path=str(config_path),
                     expected_contract_version="qqq_tech_enhancement.feature_snapshot.v1",
                 )

@@ -150,6 +150,7 @@ def test_platform_supported_profiles_are_filtered_by_registry():
     assert get_supported_profiles_for_platform(IBKR_PLATFORM) == frozenset(
         {
             "soxl_soxx_trend_income",
+            "tqqq_growth_income",
             "qqq_tech_enhancement",
             "global_etf_rotation",
             "russell_1000_multi_factor_defensive",
@@ -161,6 +162,7 @@ def test_platform_eligible_profiles_are_exposed_by_capability_matrix():
     assert get_eligible_profiles_for_platform(IBKR_PLATFORM) == frozenset(
         {
             "soxl_soxx_trend_income",
+            "tqqq_growth_income",
             "qqq_tech_enhancement",
             "global_etf_rotation",
             "russell_1000_multi_factor_defensive",
@@ -179,6 +181,18 @@ def test_load_platform_runtime_settings_accepts_qqq_tech_enhancement(monkeypatch
     assert settings.strategy_profile == "qqq_tech_enhancement"
     assert settings.strategy_display_name == "QQQ Tech Enhancement"
     assert settings.strategy_target_mode == "weight"
+
+
+def test_load_platform_runtime_settings_accepts_tqqq_growth_income(monkeypatch):
+    monkeypatch.setenv("STRATEGY_PROFILE", "tqqq_growth_income")
+    monkeypatch.setenv("ACCOUNT_GROUP", "default")
+    monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_JSON", MINIMAL_GROUP_JSON)
+
+    settings = load_platform_runtime_settings(project_id_resolver=lambda: "project-1")
+
+    assert settings.strategy_profile == "tqqq_growth_income"
+    assert settings.strategy_display_name == "TQQQ Growth Income"
+    assert settings.strategy_target_mode == "value"
 
 
 def test_load_platform_runtime_settings_rejects_legacy_qqq_tech_alias(monkeypatch):
@@ -207,6 +221,7 @@ def test_platform_profile_status_matrix_matches_current_ibkr_rollout():
         "global_etf_rotation",
         "russell_1000_multi_factor_defensive",
         "soxl_soxx_trend_income",
+        "tqqq_growth_income",
         "qqq_tech_enhancement",
     }
     assert by_profile["global_etf_rotation"] == {
@@ -222,6 +237,9 @@ def test_platform_profile_status_matrix_matches_current_ibkr_rollout():
     assert by_profile["soxl_soxx_trend_income"]["display_name"] == "SOXL/SOXX Semiconductor Trend Income"
     assert by_profile["soxl_soxx_trend_income"]["eligible"] is True
     assert by_profile["soxl_soxx_trend_income"]["enabled"] is True
+    assert by_profile["tqqq_growth_income"]["display_name"] == "TQQQ Growth Income"
+    assert by_profile["tqqq_growth_income"]["eligible"] is True
+    assert by_profile["tqqq_growth_income"]["enabled"] is True
 
 
 def test_print_strategy_profile_status_json_matches_registry():
@@ -247,6 +265,7 @@ def test_print_strategy_profile_status_table_contains_expected_headers():
     assert "display_name" in result.stdout
     assert "global_etf_rotation" in result.stdout
     assert "QQQ Tech Enhancement" in result.stdout
+    assert "TQQQ Growth Income" in result.stdout
 
 
 

@@ -36,6 +36,23 @@ def test_load_strategy_entrypoint_for_profile_resolves_qqq_tech_enhancement(monk
     assert entrypoint.manifest.default_config["safe_haven"] == "BOXX"
 
 
+def test_load_strategy_entrypoint_for_profile_resolves_tqqq_growth_income(monkeypatch):
+    try:
+        import pandas  # noqa: F401
+    except ModuleNotFoundError:
+        return
+
+    market_calendars_module = types.ModuleType("pandas_market_calendars")
+    market_calendars_module.get_calendar = lambda name: None
+    monkeypatch.setitem(sys.modules, "pandas_market_calendars", market_calendars_module)
+
+    entrypoint = load_strategy_entrypoint_for_profile("tqqq_growth_income")
+
+    assert entrypoint.manifest.profile == "tqqq_growth_income"
+    assert entrypoint.manifest.required_inputs == frozenset({"benchmark_history", "portfolio_snapshot"})
+    assert entrypoint.manifest.default_config["benchmark_symbol"] == "QQQ"
+
+
 def test_load_strategy_entrypoint_for_profile_rejects_legacy_cash_buffer_profile(monkeypatch):
     try:
         import pandas  # noqa: F401
@@ -92,6 +109,22 @@ def test_load_strategy_runtime_adapter_for_profile_resolves_semiconductor_inputs
     adapter = load_strategy_runtime_adapter_for_profile("soxl_soxx_trend_income")
 
     assert adapter.available_inputs == frozenset({"derived_indicators", "portfolio_snapshot"})
+    assert adapter.portfolio_input_name == "portfolio_snapshot"
+
+
+def test_load_strategy_runtime_adapter_for_profile_resolves_tqqq_inputs(monkeypatch):
+    try:
+        import pandas  # noqa: F401
+    except ModuleNotFoundError:
+        return
+
+    market_calendars_module = types.ModuleType("pandas_market_calendars")
+    market_calendars_module.get_calendar = lambda name: None
+    monkeypatch.setitem(sys.modules, "pandas_market_calendars", market_calendars_module)
+
+    adapter = load_strategy_runtime_adapter_for_profile("tqqq_growth_income")
+
+    assert adapter.available_inputs == frozenset({"benchmark_history", "portfolio_snapshot"})
     assert adapter.portfolio_input_name == "portfolio_snapshot"
 
 

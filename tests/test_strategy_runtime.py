@@ -10,7 +10,12 @@ from quant_platform_kit.strategy_contracts import (
 from runtime_config_support import PlatformRuntimeSettings
 
 
-def _build_runtime_settings(profile: str = "qqq_tech_enhancement") -> PlatformRuntimeSettings:
+def _build_runtime_settings(
+    profile: str = "qqq_tech_enhancement",
+    *,
+    display_name: str = "QQQ Tech Enhancement",
+    target_mode: str = "weight",
+) -> PlatformRuntimeSettings:
     return PlatformRuntimeSettings(
         project_id=None,
         ib_gateway_instance_name="127.0.0.1",
@@ -19,9 +24,9 @@ def _build_runtime_settings(profile: str = "qqq_tech_enhancement") -> PlatformRu
         ib_gateway_ip_mode="internal",
         ib_client_id=1,
         strategy_profile=profile,
-        strategy_display_name="QQQ Tech Enhancement",
+        strategy_display_name=display_name,
         strategy_domain="us_equity",
-        strategy_target_mode="weight",
+        strategy_target_mode=target_mode,
         strategy_artifact_root=None,
         strategy_artifact_dir=None,
         feature_snapshot_path="/tmp/snapshot.csv",
@@ -49,6 +54,7 @@ def test_main_compute_signals_uses_strategy_runtime_decision(strategy_module, mo
             ib,
             current_holdings,
             historical_close_loader,
+            historical_candle_loader,
             run_as_of,
             translator,
             pacing_sec,
@@ -59,6 +65,7 @@ def test_main_compute_signals_uses_strategy_runtime_decision(strategy_module, mo
             observed["pacing_sec"] = pacing_sec
             observed["translator_sample"] = translator("equity")
             observed["historical_loader"] = historical_close_loader
+            observed["historical_candle_loader"] = historical_candle_loader
             return type(
                 "Evaluation",
                 (),
@@ -97,6 +104,7 @@ def test_main_compute_signals_uses_strategy_runtime_decision(strategy_module, mo
     assert observed["run_as_of"] == "2026-04-07"
     assert observed["pacing_sec"] == strategy_module.HIST_DATA_PACING_SEC
     assert observed["translator_sample"]
+    assert callable(observed["historical_candle_loader"])
 
 
 def test_load_strategy_runtime_uses_entrypoint_defaults_and_runtime_adapter(monkeypatch):
@@ -379,3 +387,76 @@ def test_value_target_runtime_builds_semiconductor_inputs(monkeypatch):
     assert captured["portfolio"] is portfolio_snapshot
     assert result.metadata["portfolio_total_equity"] == 50000.0
     assert result.metadata["managed_symbols"] == ("SOXL", "SOXX", "QQQI", "SPYI", "BOXX")
+
+
+def test_value_target_runtime_builds_tqqq_inputs(monkeypatch):
+    captured = {}
+
+    class FakeEntrypoint:
+        manifest = StrategyManifest(
+            profile="tqqq_growth_income",
+            domain="us_equity",
+            display_name="TQQQ Growth Income",
+            description="test",
+            required_inputs=frozenset({"benchmark_history", "portfolio_snapshot"}),
+            default_config={
+                "benchmark_symbol": "QQQ",
+                "managed_symbols": ("TQQQ", "BOXX", "SPYI", "QQQI"),
+            },
+        )
+
+        def evaluate(self, ctx):
+            captured["market_data"] = dict(ctx.market_data)
+            captured["portfolio"] = ctx.portfolio
+            return StrategyDecision(
+                positions=(
+                    PositionTarget(symbol="TQQQ", target_value=30000.0),
+                    PositionTarget(symbol="BOXX", target_value=20000.0, role="safe_haven"),
+                )
+            )
+
+    runtime = strategy_runtime_module.LoadedStrategyRuntime(
+        entrypoint=FakeEntrypoint(),
+        runtime_adapter=StrategyRuntimeAdapter(status_icon="🐤", portfolio_input_name="portfolio_snapshot"),
+        runtime_settings=_build_runtime_settings(
+            profile="tqqq_growth_income",
+            display_name="TQQQ Growth Income",
+            target_mode="value",
+        ),
+        runtime_config={},
+        merged_runtime_config={
+            "benchmark_symbol": "QQQ",
+            "managed_symbols": ("TQQQ", "BOXX", "SPYI", "QQQI"),
+        },
+        status_icon="🐤",
+        logger=lambda _message: None,
+    )
+
+    portfolio_snapshot = SimpleNamespace(total_equity=50000.0)
+    monkeypatch.setattr(strategy_runtime_module, "fetch_portfolio_snapshot", lambda _ib: portfolio_snapshot)
+
+    def fake_candle_loader(_ib, symbol, duration="2 Y", bar_size="1 day"):
+        assert symbol == "QQQ"
+        assert duration == "2 Y"
+        assert bar_size == "1 day"
+        return [
+            {"close": 100.0, "high": 101.0, "low": 99.0}
+            for _ in range(220)
+        ]
+
+    result = runtime.evaluate(
+        ib="fake-ib",
+        current_holdings={"TQQQ"},
+        historical_close_loader=lambda *_args, **_kwargs: None,
+        historical_candle_loader=fake_candle_loader,
+        run_as_of=strategy_runtime_module.pd.Timestamp("2026-04-01"),
+        translator=lambda key, **_kwargs: key,
+        pacing_sec=0.5,
+    )
+
+    assert len(captured["market_data"]["benchmark_history"]) == 220
+    assert captured["market_data"]["benchmark_history"][0]["high"] == 101.0
+    assert captured["portfolio"] is portfolio_snapshot
+    assert result.metadata["portfolio_total_equity"] == 50000.0
+    assert result.metadata["benchmark_symbol"] == "QQQ"
+    assert result.metadata["managed_symbols"] == ("TQQQ", "BOXX", "SPYI", "QQQI")

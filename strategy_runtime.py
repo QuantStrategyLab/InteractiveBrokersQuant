@@ -9,6 +9,7 @@ import pandas as pd
 from quant_platform_kit.common.feature_snapshot import load_feature_snapshot_guarded
 from quant_platform_kit.ibkr import (
     build_ibkr_strategy_context,
+    build_benchmark_history_inputs,
     build_market_history_inputs,
     build_semiconductor_rotation_inputs,
     fetch_portfolio_snapshot,
@@ -29,6 +30,7 @@ from strategy_loader import (
 DEFAULT_CASH_RESERVE_RATIO = 0.03
 _FEATURE_SNAPSHOT_INPUT = "feature_snapshot"
 _MARKET_HISTORY_INPUT = "market_history"
+_BENCHMARK_HISTORY_INPUT = "benchmark_history"
 _DERIVED_INDICATORS_INPUT = "derived_indicators"
 _PORTFOLIO_SNAPSHOT_INPUT = "portfolio_snapshot"
 
@@ -64,6 +66,7 @@ class LoadedStrategyRuntime:
         ib,
         current_holdings,
         historical_close_loader: Callable[..., Any],
+        historical_candle_loader: Callable[..., Any] | None = None,
         run_as_of: pd.Timestamp,
         translator: Callable[[str], str],
         pacing_sec: float,
@@ -81,15 +84,20 @@ class LoadedStrategyRuntime:
                 ib=ib,
                 current_holdings=current_holdings,
                 historical_close_loader=historical_close_loader,
+                historical_candle_loader=historical_candle_loader,
                 run_as_of=run_as_of,
                 translator=translator,
                 pacing_sec=pacing_sec,
             )
-        if {_DERIVED_INDICATORS_INPUT, _PORTFOLIO_SNAPSHOT_INPUT}.issubset(self.required_inputs):
+        if _PORTFOLIO_SNAPSHOT_INPUT in self.required_inputs and (
+            _DERIVED_INDICATORS_INPUT in self.required_inputs
+            or _BENCHMARK_HISTORY_INPUT in self.required_inputs
+        ):
             return self._evaluate_value_target_strategy(
                 ib=ib,
                 current_holdings=current_holdings,
                 historical_close_loader=historical_close_loader,
+                historical_candle_loader=historical_candle_loader,
                 run_as_of=run_as_of,
                 translator=translator,
                 pacing_sec=pacing_sec,
@@ -105,6 +113,7 @@ class LoadedStrategyRuntime:
         ib,
         current_holdings,
         historical_close_loader: Callable[..., Any],
+        historical_candle_loader: Callable[..., Any] | None,
         run_as_of: pd.Timestamp,
         translator: Callable[[str], str],
         pacing_sec: float,
@@ -144,6 +153,7 @@ class LoadedStrategyRuntime:
         ib,
         current_holdings,
         historical_close_loader: Callable[..., Any],
+        historical_candle_loader: Callable[..., Any] | None,
         run_as_of: pd.Timestamp,
         translator: Callable[[str], str],
         pacing_sec: float,
@@ -152,15 +162,16 @@ class LoadedStrategyRuntime:
         runtime_config.setdefault("translator", translator)
         runtime_config.setdefault("pacing_sec", float(pacing_sec))
         portfolio_snapshot = fetch_portfolio_snapshot(ib)
+        market_inputs = self._build_value_target_market_inputs(
+            ib=ib,
+            historical_close_loader=historical_close_loader,
+            historical_candle_loader=historical_candle_loader,
+        )
         ctx = build_ibkr_strategy_context(
             entrypoint=self.entrypoint,
             runtime_adapter=self.runtime_adapter,
             as_of=run_as_of,
-            market_inputs=build_semiconductor_rotation_inputs(
-                ib,
-                historical_close_loader,
-                trend_ma_window=int(self.merged_runtime_config.get("trend_ma_window", 150)),
-            ),
+            market_inputs=market_inputs,
             portfolio_snapshot=portfolio_snapshot,
             runtime_config=runtime_config,
             current_holdings=current_holdings,
@@ -183,7 +194,41 @@ class LoadedStrategyRuntime:
         }
         if safe_haven_symbol:
             metadata["safe_haven_symbol"] = str(safe_haven_symbol)
+        benchmark_symbol = market_inputs.get("benchmark_symbol")
+        if benchmark_symbol:
+            metadata["benchmark_symbol"] = str(benchmark_symbol)
         return StrategyEvaluationResult(decision=decision, metadata=metadata)
+
+    def _build_value_target_market_inputs(
+        self,
+        *,
+        ib,
+        historical_close_loader: Callable[..., Any],
+        historical_candle_loader: Callable[..., Any] | None,
+    ) -> dict[str, Any]:
+        if _DERIVED_INDICATORS_INPUT in self.required_inputs:
+            return build_semiconductor_rotation_inputs(
+                ib,
+                historical_close_loader,
+                trend_ma_window=int(self.merged_runtime_config.get("trend_ma_window", 150)),
+            )
+        if _BENCHMARK_HISTORY_INPUT in self.required_inputs:
+            if historical_candle_loader is None:
+                raise ValueError(
+                    f"IBKR strategy profile {self.profile!r} requires benchmark_history but no candle loader was provided"
+                )
+            benchmark_symbol = str(self.merged_runtime_config.get("benchmark_symbol") or "QQQ").strip().upper()
+            market_inputs = build_benchmark_history_inputs(
+                ib,
+                historical_candle_loader,
+                benchmark_symbol=benchmark_symbol,
+            )
+            market_inputs["benchmark_symbol"] = benchmark_symbol
+            return market_inputs
+        raise ValueError(
+            f"Unsupported value-target required_inputs for IBKR strategy profile {self.profile!r}: "
+            f"{', '.join(sorted(self.required_inputs)) or '<none>'}"
+        )
 
     def _evaluate_feature_snapshot_strategy(
         self,

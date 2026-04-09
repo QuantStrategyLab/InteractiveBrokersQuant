@@ -25,6 +25,7 @@ from quant_platform_kit.common.runtime_reports import (
 from quant_platform_kit.ibkr import (
     connect_ib as ibkr_connect_ib,
     ensure_event_loop as ibkr_ensure_event_loop,
+    fetch_historical_price_candles,
     fetch_historical_price_series,
     fetch_portfolio_snapshot,
     fetch_quote_snapshots,
@@ -349,6 +350,16 @@ def get_historical_close(ib, symbol, duration="2 Y", bar_size="1 day"):
     )
 
 
+def get_historical_candles(ib, symbol, duration="2 Y", bar_size="1 day"):
+    """Fetch daily OHLC candles from IBKR via QuantPlatformKit."""
+    return fetch_historical_price_candles(
+        ib,
+        symbol,
+        duration=duration,
+        bar_size=bar_size,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Strategy logic
 # ---------------------------------------------------------------------------
@@ -357,6 +368,7 @@ def compute_signals(ib, current_holdings):
         ib=ib,
         current_holdings=current_holdings,
         historical_close_loader=get_historical_close,
+        historical_candle_loader=get_historical_candles,
         run_as_of=resolve_run_as_of_date(),
         translator=t,
         pacing_sec=HIST_DATA_PACING_SEC,

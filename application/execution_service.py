@@ -54,7 +54,7 @@ def check_order_submitted(report, *, translator):
                 order_id=order_id,
             ),
         )
-    if status in ["Submitted", "PreSubmitted"]:
+    if status in {"PendingSubmit", "ApiPending", "ApiPendingSubmit", "Submitted", "PreSubmitted"}:
         return True, f"✅ {translator('submitted', order_id=order_id)}"
     return False, f"❌ {translator('failed', reason=status)}"
 

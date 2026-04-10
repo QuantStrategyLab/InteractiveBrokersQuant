@@ -66,6 +66,13 @@ def test_check_order_submitted_accepts_submitted_like_status():
     assert "submitted 123" in message
 
 
+def test_check_order_submitted_accepts_pending_submit_status():
+    report = SimpleNamespace(broker_order_id="123", status="PendingSubmit")
+    ok, message = check_order_submitted(report, translator=translate)
+    assert ok is True
+    assert "submitted 123" in message
+
+
 def test_execute_rebalance_submits_limit_buy_for_underweight_position(monkeypatch, tmp_path):
     class FakeIB:
         def openTrades(self):

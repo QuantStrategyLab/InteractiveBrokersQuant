@@ -1,0 +1,59 @@
+{
+  "runtime_full_deltas_ma200_minus_current_2023_plus_5bps": {
+    "cagr": 0.017005680540589596,
+    "max_drawdown": -0.0009687157087185927,
+    "ir_vs_qqq": 0.1179280630261954,
+    "turnover_per_year": 0.12597432289756672
+  },
+  "attack_only_deltas_ma200_minus_current_2023_plus_5bps": {
+    "cagr": 0.057022614110814995,
+    "max_drawdown": -0.000181740802685737,
+    "ir_vs_qqq": 0.34691683902292375,
+    "turnover_per_year": 0.501710350528827
+  },
+  "runtime_full_deltas_ma200_minus_current_2022_5bps": {
+    "total_return": -0.05988817707074334,
+    "max_drawdown": -0.05835544243928048,
+    "turnover_per_year": 1.542779564270228
+  },
+  "attack_only_deltas_ma200_minus_current_2022_5bps": {
+    "total_return": -0.14012205322747162,
+    "max_drawdown": -0.13803704132736794,
+    "turnover_per_year": 4.037040771456988
+  },
+  "verdict": "MA200 direct entry improves the 2023+ rebound but materially worsens the 2022 stress period; do not switch production directly without an extra risk guard.",
+  "pivot_2023_plus_5bps": {
+    "CAGR::current_atr_entry": {
+      "attack_only": 0.2378376411204206,
+      "runtime_full": 0.18535806288012302
+    },
+    "CAGR::ma200_entry": {
+      "attack_only": 0.2948602552312356,
+      "runtime_full": 0.20236374342071262
+    },
+    "Max Drawdown::current_atr_entry": {
+      "attack_only": -0.20112246390559085,
+      "runtime_full": -0.1777566311097155
+    },
+    "Max Drawdown::ma200_entry": {
+      "attack_only": -0.2013042047082766,
+      "runtime_full": -0.1787253468184341
+    },
+    "Information Ratio vs QQQ::current_atr_entry": {
+      "attack_only": -0.2682182301127547,
+      "runtime_full": -1.3870690410480886
+    },
+    "Information Ratio vs QQQ::ma200_entry": {
+      "attack_only": 0.07869860891016904,
+      "runtime_full": -1.2691409780218932
+    },
+    "Turnover/Year::current_atr_entry": {
+      "attack_only": 1.2333615953610704,
+      "runtime_full": 0.475786980160125
+    },
+    "Turnover/Year::ma200_entry": {
+      "attack_only": 1.7350719458898973,
+      "runtime_full": 0.6017613030576917
+    }
+  }
+}

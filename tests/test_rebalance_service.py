@@ -112,6 +112,30 @@ def test_build_dashboard_localizes_snapshot_guard_text_for_zh():
     assert "🎯 特征快照校验阻止执行" in dashboard
 
 
+def test_build_dashboard_localizes_qqq_tech_diagnostics_for_zh():
+    dashboard = build_dashboard(
+        positions={},
+        account_values={"equity": 1000.0, "buying_power": 500.0},
+        signal_desc=(
+            "regime=soft_defense breadth=41.2% benchmark_trend=down "
+            "target_stock=60.0% realized_stock=60.0% selected=8 top=CIEN(0.92)"
+        ),
+        status_desc="regime=soft_defense | breadth=41.2% | target_stock=60.0% | realized_stock=60.0%",
+        strategy_profile="qqq_tech_enhancement",
+        target_weights={},
+        signal_metadata={
+            "allocation": _weight_allocation({}, safe_haven_symbols=("BOXX",)),
+        },
+        translator=build_translator("zh"),
+        separator="---",
+        strategy_display_name="QQQ 科技增强",
+    )
+
+    assert "市场阶段=软防御 | 市场宽度=41.2% | 目标股票仓位=60.0% | 实际股票仓位=60.0%" in dashboard
+    assert "基准趋势=向下" in dashboard
+    assert "入选标的数=8 前排标的=CIEN(0.92)" in dashboard
+
+
 def test_run_strategy_core_passes_signal_metadata_to_execution():
     observed = {"messages": [], "strategy_symbols": None}
 

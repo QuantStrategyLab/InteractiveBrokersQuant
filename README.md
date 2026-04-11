@@ -18,7 +18,7 @@ IBKR runtime for shared `us_equity` strategy profiles from `UsEquityStrategies`.
 - `russell_1000_multi_factor_defensive` (`Russell 1000 Multi-Factor`): monthly stock-selection strategy that consumes a precomputed feature snapshot
 - `tqqq_growth_income` (`TQQQ Growth Income`): QQQ trend-following value-target strategy with BOXX and income sleeve
 - `soxl_soxx_trend_income` (`SOXL/SOXX Semiconductor Trend Income`): semiconductor rotation with income sleeve
-- `qqq_tech_enhancement` (`QQQ Tech Enhancement`): monthly tech-heavy stock-selection branch with explicit BOXX cash buffer
+- `qqq_tech_enhancement` (`Tech/Communication Pullback Enhancement`): monthly tech-heavy stock-selection branch with explicit BOXX cash buffer
 
 Current strategy implementations are sourced from `UsEquityStrategies`.
 
@@ -55,7 +55,7 @@ The mainline runtime now follows one path only:
 | `russell_1000_multi_factor_defensive` | Russell 1000 Multi-Factor | Yes | Yes | No | No | `us_equity` | defensive stock baseline |
 | `tqqq_growth_income` | TQQQ Growth Income | Yes | Yes | No | No | `us_equity` | enabled value-mode alternative |
 | `soxl_soxx_trend_income` | SOXL/SOXX Semiconductor Trend Income | Yes | Yes | No | No | `us_equity` | current IBKR live line |
-| `qqq_tech_enhancement` | QQQ Tech Enhancement | Yes | Yes | No | No | `us_equity` | enabled feature-snapshot alternative |
+| `qqq_tech_enhancement` | Tech/Communication Pullback Enhancement | Yes | Yes | No | No | `us_equity` | enabled feature-snapshot alternative |
 
 Check the current matrix locally:
 

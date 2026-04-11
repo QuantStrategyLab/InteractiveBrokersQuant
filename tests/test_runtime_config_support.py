@@ -180,7 +180,7 @@ def test_load_platform_runtime_settings_accepts_qqq_tech_enhancement(monkeypatch
     settings = load_platform_runtime_settings(project_id_resolver=lambda: "project-1")
 
     assert settings.strategy_profile == "qqq_tech_enhancement"
-    assert settings.strategy_display_name == "QQQ Tech Enhancement"
+    assert settings.strategy_display_name == "Tech/Communication Pullback Enhancement"
     assert settings.strategy_target_mode == "weight"
 
 
@@ -211,7 +211,7 @@ def test_platform_profile_matrix_marks_default_and_rollback():
     by_profile = {row["canonical_profile"]: row for row in rows}
     assert by_profile["global_etf_rotation"]["is_default"] is True
     assert by_profile["global_etf_rotation"]["is_rollback"] is True
-    assert by_profile["qqq_tech_enhancement"]["display_name"] == "QQQ Tech Enhancement"
+    assert by_profile["qqq_tech_enhancement"]["display_name"] == "Tech/Communication Pullback Enhancement"
 
 
 def test_platform_profile_status_matrix_matches_current_ibkr_rollout():
@@ -294,7 +294,7 @@ def test_print_strategy_profile_status_table_contains_expected_headers():
     assert "input_mode" in result.stdout
     assert "requires_snapshot_artifacts" in result.stdout
     assert "global_etf_rotation" in result.stdout
-    assert "QQQ Tech Enhancement" in result.stdout
+    assert "Tech/Communication Pullback Enhancement" in result.stdout
     assert "TQQQ Growth Income" in result.stdout
 
 

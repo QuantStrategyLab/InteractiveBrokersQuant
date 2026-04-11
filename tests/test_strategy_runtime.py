@@ -13,7 +13,7 @@ from runtime_config_support import PlatformRuntimeSettings
 def _build_runtime_settings(
     profile: str = "qqq_tech_enhancement",
     *,
-    display_name: str = "QQQ Tech Enhancement",
+    display_name: str = "Tech/Communication Pullback Enhancement",
     target_mode: str = "weight",
 ) -> PlatformRuntimeSettings:
     return PlatformRuntimeSettings(
@@ -112,7 +112,7 @@ def test_load_strategy_runtime_uses_entrypoint_defaults_and_runtime_adapter(monk
         manifest = StrategyManifest(
             profile="qqq_tech_enhancement",
             domain="us_equity",
-            display_name="QQQ Tech Enhancement",
+            display_name="Tech/Communication Pullback Enhancement",
             description="test",
             required_inputs=frozenset({"feature_snapshot"}),
             default_config={"safe_haven": "BOXX", "benchmark_symbol": "QQQ"},
@@ -164,7 +164,7 @@ def test_feature_snapshot_runtime_prefers_unified_runtime_adapter_metadata(monke
         manifest = StrategyManifest(
             profile="qqq_tech_enhancement",
             domain="us_equity",
-            display_name="QQQ Tech Enhancement",
+            display_name="Tech/Communication Pullback Enhancement",
             description="test",
             required_inputs=frozenset({"feature_snapshot"}),
             default_config={"safe_haven": "BOXX", "benchmark_symbol": "QQQ"},
@@ -274,7 +274,7 @@ def test_feature_snapshot_runtime_fail_closes_on_entrypoint_exception(monkeypatc
         manifest = StrategyManifest(
             profile="qqq_tech_enhancement",
             domain="us_equity",
-            display_name="QQQ Tech Enhancement",
+            display_name="Tech/Communication Pullback Enhancement",
             description="test",
             required_inputs=frozenset({"feature_snapshot"}),
             default_config={"safe_haven": "BOXX"},

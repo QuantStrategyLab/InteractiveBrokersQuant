@@ -104,7 +104,7 @@ def test_build_dashboard_localizes_snapshot_guard_text_for_zh():
         },
         translator=build_translator("zh"),
         separator="---",
-        strategy_display_name="QQQ 科技增强",
+        strategy_display_name="科技通信回调增强",
         status_icon="🛑",
     )
 
@@ -128,7 +128,7 @@ def test_build_dashboard_localizes_qqq_tech_diagnostics_for_zh():
         },
         translator=build_translator("zh"),
         separator="---",
-        strategy_display_name="QQQ 科技增强",
+        strategy_display_name="科技通信回调增强",
     )
 
     assert "市场阶段=软防御 | 市场宽度=41.2% | 目标股票仓位=60.0% | 实际股票仓位=60.0%" in dashboard
@@ -255,7 +255,7 @@ def test_run_strategy_core_writes_reconciliation_record(tmp_path):
         send_tg_message=lambda message: observed["messages"].append(message),
         translator=_build_test_translator(),
         separator="---",
-        strategy_display_name="QQQ Tech Enhancement",
+        strategy_display_name="Tech/Communication Pullback Enhancement",
         reconciliation_output_path=output_path,
     )
 
@@ -303,7 +303,7 @@ def test_run_strategy_core_writes_reconciliation_record_under_strategy_dir(tmp_p
         send_tg_message=lambda _message: None,
         translator=_build_test_translator(),
         separator="---",
-        strategy_display_name="QQQ Tech Enhancement",
+        strategy_display_name="Tech/Communication Pullback Enhancement",
         reconciliation_output_path=output_root,
     )
 

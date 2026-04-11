@@ -20,7 +20,7 @@ def test_load_strategy_entrypoint_for_profile_resolves_global_etf_rotation(monke
     assert "market_history" in entrypoint.manifest.required_inputs
 
 
-def test_load_strategy_entrypoint_for_profile_resolves_qqq_tech_enhancement(monkeypatch):
+def test_load_strategy_entrypoint_for_profile_resolves_tech_communication_pullback_enhancement(monkeypatch):
     try:
         import pandas  # noqa: F401
     except ModuleNotFoundError:
@@ -30,9 +30,9 @@ def test_load_strategy_entrypoint_for_profile_resolves_qqq_tech_enhancement(monk
     market_calendars_module.get_calendar = lambda name: None
     monkeypatch.setitem(sys.modules, "pandas_market_calendars", market_calendars_module)
 
-    entrypoint = load_strategy_entrypoint_for_profile("qqq_tech_enhancement")
+    entrypoint = load_strategy_entrypoint_for_profile("tech_communication_pullback_enhancement")
 
-    assert entrypoint.manifest.profile == "qqq_tech_enhancement"
+    assert entrypoint.manifest.profile == "tech_communication_pullback_enhancement"
     assert entrypoint.manifest.default_config["safe_haven"] == "BOXX"
 
 
@@ -67,7 +67,7 @@ def test_load_strategy_entrypoint_for_profile_rejects_legacy_cash_buffer_profile
         load_strategy_entrypoint_for_profile("tech_pullback_cash_buffer")
 
 
-def test_load_strategy_runtime_adapter_for_profile_resolves_qqq_tech_enhancement(monkeypatch):
+def test_load_strategy_runtime_adapter_for_profile_resolves_tech_communication_pullback_enhancement(monkeypatch):
     try:
         import pandas  # noqa: F401
     except ModuleNotFoundError:
@@ -77,12 +77,12 @@ def test_load_strategy_runtime_adapter_for_profile_resolves_qqq_tech_enhancement
     market_calendars_module.get_calendar = lambda name: None
     monkeypatch.setitem(sys.modules, "pandas_market_calendars", market_calendars_module)
 
-    adapter = load_strategy_runtime_adapter_for_profile("qqq_tech_enhancement")
+    adapter = load_strategy_runtime_adapter_for_profile("tech_communication_pullback_enhancement")
 
     assert adapter.status_icon == "🧲"
     assert adapter.available_inputs == frozenset({"feature_snapshot"})
     assert adapter.require_snapshot_manifest is True
-    assert adapter.snapshot_contract_version == "qqq_tech_enhancement.feature_snapshot.v1"
+    assert adapter.snapshot_contract_version == "tech_communication_pullback_enhancement.feature_snapshot.v1"
 
 
 def test_load_strategy_runtime_adapter_for_profile_resolves_global_etf_rotation_inputs(monkeypatch):

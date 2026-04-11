@@ -97,7 +97,7 @@ def test_build_dashboard_localizes_snapshot_guard_text_for_zh():
         account_values={"equity": 1000.0, "buying_power": 500.0},
         signal_desc="feature snapshot guard blocked execution",
         status_desc="fail_closed | reason=feature_snapshot_path_missing",
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         target_weights={},
         signal_metadata={
             "allocation": _weight_allocation({}, safe_haven_symbols=("BOXX",)),
@@ -121,7 +121,7 @@ def test_build_dashboard_localizes_qqq_tech_diagnostics_for_zh():
             "target_stock=60.0% realized_stock=60.0% selected=8 top=CIEN(0.92)"
         ),
         status_desc="regime=soft_defense | breadth=41.2% | target_stock=60.0% | realized_stock=60.0%",
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         target_weights={},
         signal_metadata={
             "allocation": _weight_allocation({}, safe_haven_symbols=("BOXX",)),
@@ -213,7 +213,7 @@ def test_run_strategy_core_writes_reconciliation_record(tmp_path):
             False,
             "breadth=41.0%",
             {
-                "strategy_profile": "qqq_tech_enhancement",
+                "strategy_profile": "tech_communication_pullback_enhancement",
                 "managed_symbols": ("AAA", "BOXX"),
                 "status_icon": "🧲",
                 "trade_date": "2026-04-01",
@@ -261,7 +261,7 @@ def test_run_strategy_core_writes_reconciliation_record(tmp_path):
 
     assert result == "OK - executed"
     payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert payload["strategy_profile"] == "qqq_tech_enhancement"
+    assert payload["strategy_profile"] == "tech_communication_pullback_enhancement"
     assert payload["snapshot_as_of"] == "2026-03-31"
     assert payload["orders_submitted"][0]["symbol"] == "AAA"
     assert payload["snapshot_price_fallback_used"] is True
@@ -280,7 +280,7 @@ def test_run_strategy_core_writes_reconciliation_record_under_strategy_dir(tmp_p
         def disconnect(self):
             return None
 
-    output_root = tmp_path / "qqq_tech_enhancement" / "reconciliation"
+    output_root = tmp_path / "tech_communication_pullback_enhancement" / "reconciliation"
 
     result = run_strategy_core(
         connect_ib=lambda: FakeIB(),
@@ -291,7 +291,7 @@ def test_run_strategy_core_writes_reconciliation_record_under_strategy_dir(tmp_p
             False,
             "outside execution window",
             {
-                "strategy_profile": "qqq_tech_enhancement",
+                "strategy_profile": "tech_communication_pullback_enhancement",
                 "trade_date": "2026-04-01",
                 "snapshot_as_of": "2026-03-31",
                 "snapshot_guard_decision": "no_op",

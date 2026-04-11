@@ -62,7 +62,7 @@ def build_switch_plan(profile: str) -> dict[str, object]:
             set_env["IBKR_STRATEGY_CONFIG_PATH"] = str(artifact_paths.bundled_config_path)
         else:
             remove_if_present.append("IBKR_STRATEGY_CONFIG_PATH")
-        if definition.profile == "qqq_tech_enhancement":
+        if definition.profile == "tech_communication_pullback_enhancement":
             optional_env.append("IBKR_RECONCILIATION_OUTPUT_PATH")
         else:
             remove_if_present.extend(

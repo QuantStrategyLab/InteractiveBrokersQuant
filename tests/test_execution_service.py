@@ -102,7 +102,7 @@ def test_execute_rebalance_submits_limit_buy_for_underweight_position(monkeypatc
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO", "BIL"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         signal_metadata=_signal_metadata(
             {"VOO": 1.0},
             risk_symbols=("VOO",),
@@ -152,7 +152,7 @@ def test_execute_rebalance_skips_when_pending_orders_exist():
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         signal_metadata=_signal_metadata({"VOO": 1.0}, risk_symbols=("VOO",)),
         dry_run_only=False,
         cash_reserve_ratio=0.03,
@@ -161,7 +161,7 @@ def test_execute_rebalance_skips_when_pending_orders_exist():
         sell_settle_delay_sec=0,
     )
 
-    assert trade_logs == ["pending_orders_detected profile=qqq_tech_enhancement symbols=VOO"]
+    assert trade_logs == ["pending_orders_detected profile=tech_communication_pullback_enhancement symbols=VOO"]
 
 
 def test_execute_rebalance_blocks_same_day_repeat_via_execution_lock(tmp_path, monkeypatch):
@@ -186,7 +186,7 @@ def test_execute_rebalance_blocks_same_day_repeat_via_execution_lock(tmp_path, m
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO", "BOXX"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         account_group="default",
         service_name="ibkr-paper",
         account_ids=("DU123",),
@@ -264,7 +264,7 @@ def test_execute_rebalance_skips_when_same_day_fills_detected():
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         account_group="default",
         service_name="ibkr-paper",
         account_ids=("DU123",),
@@ -305,7 +305,7 @@ def test_execute_rebalance_returns_structured_summary_when_requested(monkeypatch
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO", "BOXX"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         account_group="default",
         service_name="ibkr-paper",
         account_ids=("DU123",),
@@ -360,7 +360,7 @@ def test_execute_rebalance_blocks_when_material_target_has_missing_prices():
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         signal_metadata=_signal_metadata(
             {"VOO": 1.0},
             risk_symbols=("VOO",),
@@ -402,7 +402,7 @@ def test_execute_rebalance_blocks_when_material_target_has_no_buying_power():
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         signal_metadata=_signal_metadata(
             {"VOO": 1.0},
             risk_symbols=("VOO",),
@@ -444,7 +444,7 @@ def test_execute_rebalance_uses_snapshot_prices_for_dry_run_when_quotes_missing(
         order_intent_cls=OrderIntent,
         translator=translate,
         strategy_symbols=["VOO", "BOXX"],
-        strategy_profile="qqq_tech_enhancement",
+        strategy_profile="tech_communication_pullback_enhancement",
         signal_metadata=_signal_metadata(
             {"VOO": 0.6, "BOXX": 0.4},
             risk_symbols=("VOO",),

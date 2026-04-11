@@ -11,7 +11,7 @@ from runtime_config_support import PlatformRuntimeSettings
 
 
 def _build_runtime_settings(
-    profile: str = "qqq_tech_enhancement",
+    profile: str = "tech_communication_pullback_enhancement",
     *,
     display_name: str = "Tech/Communication Pullback Enhancement",
     target_mode: str = "weight",
@@ -110,7 +110,7 @@ def test_main_compute_signals_uses_strategy_runtime_decision(strategy_module, mo
 def test_load_strategy_runtime_uses_entrypoint_defaults_and_runtime_adapter(monkeypatch):
     class FakeEntrypoint:
         manifest = StrategyManifest(
-            profile="qqq_tech_enhancement",
+            profile="tech_communication_pullback_enhancement",
             domain="us_equity",
             display_name="Tech/Communication Pullback Enhancement",
             description="test",
@@ -124,7 +124,7 @@ def test_load_strategy_runtime_uses_entrypoint_defaults_and_runtime_adapter(monk
     monkeypatch.setattr(
         strategy_runtime_module,
         "load_strategy_definition",
-        lambda raw_profile: SimpleNamespace(profile="qqq_tech_enhancement"),
+        lambda raw_profile: SimpleNamespace(profile="tech_communication_pullback_enhancement"),
     )
     monkeypatch.setattr(
         strategy_runtime_module,
@@ -144,12 +144,12 @@ def test_load_strategy_runtime_uses_entrypoint_defaults_and_runtime_adapter(monk
     )
 
     runtime = strategy_runtime_module.load_strategy_runtime(
-        "qqq_tech_enhancement",
+        "tech_communication_pullback_enhancement",
         runtime_settings=_build_runtime_settings(),
         logger=lambda _message: None,
     )
 
-    assert runtime.entrypoint.manifest.profile == "qqq_tech_enhancement"
+    assert runtime.entrypoint.manifest.profile == "tech_communication_pullback_enhancement"
     assert runtime.runtime_config["benchmark_symbol"] == "SPY"
     assert runtime.merged_runtime_config["safe_haven"] == "BOXX"
     assert runtime.merged_runtime_config["benchmark_symbol"] == "SPY"
@@ -162,7 +162,7 @@ def test_feature_snapshot_runtime_prefers_unified_runtime_adapter_metadata(monke
 
     class FakeEntrypoint:
         manifest = StrategyManifest(
-            profile="qqq_tech_enhancement",
+            profile="tech_communication_pullback_enhancement",
             domain="us_equity",
             display_name="Tech/Communication Pullback Enhancement",
             description="test",
@@ -272,7 +272,7 @@ def test_market_history_runtime_uses_canonical_market_history_key():
 def test_feature_snapshot_runtime_fail_closes_on_entrypoint_exception(monkeypatch):
     class ExplodingEntrypoint:
         manifest = StrategyManifest(
-            profile="qqq_tech_enhancement",
+            profile="tech_communication_pullback_enhancement",
             domain="us_equity",
             display_name="Tech/Communication Pullback Enhancement",
             description="test",

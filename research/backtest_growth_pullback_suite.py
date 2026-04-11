@@ -1292,7 +1292,7 @@ def build_workspace_mapping() -> dict[str, object]:
         "qqq_plus_default_config": str(DEFAULT_CONFIGS_DIR / "qqq_plus_stock_alpha_v1_1_default.json"),
         "qqq_plus_aggressive_config": str(DEFAULT_CONFIGS_DIR / "qqq_plus_stock_alpha_v1_1_aggressive.json"),
         "defensive_strategy_entry": str(suite.US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/strategies/russell_1000_multi_factor_defensive.py"),
-        "defensive_backtest_entry": str(suite.US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/backtests/russell_1000_multi_factor_defensive.py"),
+        "defensive_backtest_entry": str(suite.US_EQUITY_SNAPSHOT_PIPELINES_ROOT / "src/us_equity_snapshot_pipelines/russell_1000_multi_factor_backtest.py"),
         "interactivebrokers_research_dir": str(SCRIPT_DIR),
         "us_equity_strategies_read_only_reference": str(suite.US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies"),
         "quant_platform_kit_shared_read_only": str(suite.QUANT_PLATFORM_KIT_ROOT / "src/quant_platform_kit"),

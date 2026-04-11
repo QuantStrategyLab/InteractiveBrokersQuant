@@ -1,8 +1,8 @@
 {
   "workspace_root": "/Users/lisiyi/Projects",
   "defensive_code_entry": "/Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/strategies/russell_1000_multi_factor_defensive.py",
-  "defensive_snapshot_entry": "/Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/snapshots/russell_1000_multi_factor_defensive.py",
-  "defensive_backtest_entry": "/Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/backtests/russell_1000_multi_factor_defensive.py",
+  "defensive_snapshot_entry": "/Users/lisiyi/Projects/UsEquitySnapshotPipelines/src/us_equity_snapshot_pipelines/russell_1000_multi_factor_defensive_snapshot.py",
+  "defensive_backtest_entry": "/Users/lisiyi/Projects/UsEquitySnapshotPipelines/src/us_equity_snapshot_pipelines/russell_1000_multi_factor_backtest.py",
   "hybrid_code_entry": "/Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/strategies/hybrid_growth_income.py",
   "hybrid_runtime_entry": "/Users/lisiyi/Projects/CharlesSchwabPlatform/main.py",
   "semiconductor_code_entry": "/Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/strategies/semiconductor_rotation_income.py",

@@ -106,10 +106,19 @@ python3 scripts/print_strategy_profile_status.py
   - `symbol`, `sector`, `mom_6_1`, `mom_12_1`, `sma200_gap`, `vol_63`, `maxdd_126`
   - optional passthrough columns such as `as_of`, `close`, `volume`, `adv20_usd`, `history_days`, `eligible`
 
-Recommended upstream task:
+Recommended upstream task lives in `../UsEquitySnapshotPipelines`:
 
 ```bash
-PYTHONPATH=src:. python3 scripts/run_russell_1000_snapshot_task.py
+cd ../UsEquitySnapshotPipelines
+PYTHONPATH=src:../UsEquityStrategies/src:../QuantPlatformKit/src python scripts/update_russell_1000_input_data.py \
+  --output-dir data/input/refreshed/r1000_official_monthly_v2_alias \
+  --universe-start 2018-01-01 \
+  --price-start 2018-01-01 \
+  --extra-symbols QQQ,SPY,BOXX
+PYTHONPATH=src:../UsEquityStrategies/src:../QuantPlatformKit/src python scripts/build_russell_1000_feature_snapshot.py \
+  --prices data/input/refreshed/r1000_official_monthly_v2_alias/r1000_price_history.csv \
+  --universe data/input/refreshed/r1000_official_monthly_v2_alias/r1000_universe_history.csv \
+  --output-dir data/output/russell_1000_multi_factor_defensive
 ```
 
 Then point this runtime at the generated file:

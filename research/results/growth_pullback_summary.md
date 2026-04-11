@@ -5,7 +5,7 @@
 - qqq_plus default config: /Users/lisiyi/Projects/InteractiveBrokersPlatform/research/configs/qqq_plus_stock_alpha_v1_1_default.json
 - qqq_plus aggressive config: /Users/lisiyi/Projects/InteractiveBrokersPlatform/research/configs/qqq_plus_stock_alpha_v1_1_aggressive.json
 - defensive strategy entry: /Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/strategies/russell_1000_multi_factor_defensive.py
-- defensive backtest entry: /Users/lisiyi/Projects/UsEquityStrategies/src/us_equity_strategies/backtests/russell_1000_multi_factor_defensive.py
+- defensive backtest entry: /Users/lisiyi/Projects/UsEquitySnapshotPipelines/src/us_equity_snapshot_pipelines/russell_1000_multi_factor_backtest.py
 - new research entry: /Users/lisiyi/Projects/InteractiveBrokersPlatform/research/backtest_growth_pullback_suite.py
 - avoided repos: /Users/lisiyi/Projects/BinancePlatform, /Users/lisiyi/Projects/CryptoLeaderRotation
 

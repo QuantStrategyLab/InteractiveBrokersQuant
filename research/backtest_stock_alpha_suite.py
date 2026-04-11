@@ -29,10 +29,13 @@ import yfinance as yf
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 US_EQUITY_STRATEGIES_ROOT = WORKSPACE_ROOT / "UsEquityStrategies"
+US_EQUITY_SNAPSHOT_PIPELINES_ROOT = WORKSPACE_ROOT / "UsEquitySnapshotPipelines"
 QUANT_PLATFORM_KIT_ROOT = WORKSPACE_ROOT / "QuantPlatformKit"
 LOCAL_RUNS_ROOT = WORKSPACE_ROOT / "_local_runs"
 
 for candidate in (
+    US_EQUITY_SNAPSHOT_PIPELINES_ROOT,
+    US_EQUITY_SNAPSHOT_PIPELINES_ROOT / "src",
     US_EQUITY_STRATEGIES_ROOT,
     US_EQUITY_STRATEGIES_ROOT / "src",
     QUANT_PLATFORM_KIT_ROOT,
@@ -43,12 +46,12 @@ for candidate in (
         if candidate_text not in sys.path:
             sys.path.insert(0, candidate_text)
 
-from us_equity_strategies.backtests.russell_1000_multi_factor_defensive import (  # noqa: E402
+from us_equity_snapshot_pipelines.russell_1000_multi_factor_backtest import (  # noqa: E402
     build_monthly_rebalance_dates,
     resolve_active_universe,
     run_backtest as run_defensive_backtest,
 )
-from us_equity_strategies.snapshots.russell_1000_multi_factor_defensive import (  # noqa: E402
+from us_equity_snapshot_pipelines.russell_1000_multi_factor_defensive_snapshot import (  # noqa: E402
     read_table,
 )
 from us_equity_strategies.strategies.tqqq_growth_income import (  # noqa: E402
@@ -1731,8 +1734,8 @@ def build_workspace_mapping(results_dir: Path, data_run_dir: Path) -> dict[str, 
     return {
         "workspace_root": str(WORKSPACE_ROOT),
         "defensive_code_entry": str(US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/strategies/russell_1000_multi_factor_defensive.py"),
-        "defensive_snapshot_entry": str(US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/snapshots/russell_1000_multi_factor_defensive.py"),
-        "defensive_backtest_entry": str(US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/backtests/russell_1000_multi_factor_defensive.py"),
+        "defensive_snapshot_entry": str(US_EQUITY_SNAPSHOT_PIPELINES_ROOT / "src/us_equity_snapshot_pipelines/russell_1000_multi_factor_defensive_snapshot.py"),
+        "defensive_backtest_entry": str(US_EQUITY_SNAPSHOT_PIPELINES_ROOT / "src/us_equity_snapshot_pipelines/russell_1000_multi_factor_backtest.py"),
         "hybrid_code_entry": str(US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/strategies/tqqq_growth_income.py"),
         "hybrid_runtime_entry": str(WORKSPACE_ROOT / "CharlesSchwabPlatform/main.py"),
         "semiconductor_code_entry": str(US_EQUITY_STRATEGIES_ROOT / "src/us_equity_strategies/strategies/soxl_soxx_trend_income.py"),

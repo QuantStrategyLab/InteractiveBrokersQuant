@@ -30,7 +30,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import backtest_stock_alpha_suite as suite  # noqa: E402
 
-from us_equity_strategies.backtests.russell_1000_multi_factor_defensive import (  # noqa: E402
+from us_equity_snapshot_pipelines.russell_1000_multi_factor_backtest import (  # noqa: E402
     build_monthly_rebalance_dates,
     resolve_active_universe,
     run_backtest as run_defensive_backtest,

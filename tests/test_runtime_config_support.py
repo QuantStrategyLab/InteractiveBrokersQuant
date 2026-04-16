@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from runtime_config_support import (
-    DEFAULT_STRATEGY_PROFILE,
     load_platform_runtime_settings,
     parse_account_group_configs,
 )
@@ -26,6 +25,7 @@ MINIMAL_GROUP_JSON = (
 )
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "print_strategy_profile_status.py"
 SWITCH_PLAN_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "print_strategy_switch_env_plan.py"
+SAMPLE_STRATEGY_PROFILE = "global_etf_rotation"
 
 
 def test_load_platform_runtime_settings_requires_strategy_profile(monkeypatch):
@@ -39,7 +39,7 @@ def test_load_platform_runtime_settings_requires_strategy_profile(monkeypatch):
 
 
 def test_load_platform_runtime_settings_requires_account_group(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_JSON", MINIMAL_GROUP_JSON)
     monkeypatch.delenv("ACCOUNT_GROUP", raising=False)
 
@@ -49,7 +49,7 @@ def test_load_platform_runtime_settings_requires_account_group(monkeypatch):
 
 
 def test_load_platform_runtime_settings_requires_account_group_config_source(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "default")
     monkeypatch.delenv("IB_ACCOUNT_GROUP_CONFIG_JSON", raising=False)
     monkeypatch.delenv("IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME", raising=False)
@@ -63,7 +63,7 @@ def test_load_platform_runtime_settings_requires_account_group_config_source(mon
 
 
 def test_load_platform_runtime_settings_uses_minimal_group_config(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "default")
     monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_JSON", MINIMAL_GROUP_JSON)
     monkeypatch.delenv("IB_GATEWAY_ZONE", raising=False)
@@ -80,7 +80,7 @@ def test_load_platform_runtime_settings_uses_minimal_group_config(monkeypatch):
     assert settings.ib_gateway_mode == "paper"
     assert settings.ib_gateway_ip_mode == "internal"
     assert settings.ib_client_id == 1
-    assert settings.strategy_profile == DEFAULT_STRATEGY_PROFILE
+    assert settings.strategy_profile == SAMPLE_STRATEGY_PROFILE
     assert settings.strategy_display_name == "Global ETF Rotation"
     assert settings.strategy_domain == US_EQUITY_DOMAIN
     assert settings.strategy_target_mode == "weight"
@@ -102,7 +102,7 @@ def test_load_platform_runtime_settings_uses_minimal_group_config(monkeypatch):
 
 
 def test_load_platform_runtime_settings_supports_explicit_group_config_values(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "taxable_main")
     monkeypatch.setenv(
         "IB_ACCOUNT_GROUP_CONFIG_JSON",
@@ -123,7 +123,7 @@ def test_load_platform_runtime_settings_supports_explicit_group_config_values(mo
     assert settings.ib_gateway_mode == "live"
     assert settings.ib_gateway_ip_mode == "external"
     assert settings.ib_client_id == 7
-    assert settings.strategy_profile == DEFAULT_STRATEGY_PROFILE
+    assert settings.strategy_profile == SAMPLE_STRATEGY_PROFILE
     assert settings.strategy_display_name == "Global ETF Rotation"
     assert settings.strategy_domain == US_EQUITY_DOMAIN
     assert settings.strategy_target_mode == "weight"
@@ -155,6 +155,7 @@ def test_platform_supported_profiles_are_filtered_by_registry():
             "tech_communication_pullback_enhancement",
             "global_etf_rotation",
             "dynamic_mega_leveraged_pullback",
+            "mega_cap_leader_rotation_aggressive",
             "mega_cap_leader_rotation_dynamic_top20",
             "russell_1000_multi_factor_defensive",
         }
@@ -169,6 +170,7 @@ def test_platform_eligible_profiles_are_exposed_by_capability_matrix():
             "tech_communication_pullback_enhancement",
             "global_etf_rotation",
             "dynamic_mega_leveraged_pullback",
+            "mega_cap_leader_rotation_aggressive",
             "mega_cap_leader_rotation_dynamic_top20",
             "russell_1000_multi_factor_defensive",
         }
@@ -244,11 +246,11 @@ def test_load_platform_runtime_settings_rejects_legacy_qqq_tech_alias(monkeypatc
         load_platform_runtime_settings(project_id_resolver=lambda: "project-1")
 
 
-def test_platform_profile_matrix_marks_default_and_rollback():
+def test_platform_profile_matrix_exposes_profiles_without_selection_roles():
     rows = get_platform_profile_matrix()
     by_profile = {row["canonical_profile"]: row for row in rows}
-    assert by_profile["global_etf_rotation"]["is_default"] is True
-    assert by_profile["global_etf_rotation"]["is_rollback"] is True
+    assert "is_default" not in by_profile["global_etf_rotation"]
+    assert "is_rollback" not in by_profile["global_etf_rotation"]
     assert by_profile["tech_communication_pullback_enhancement"]["display_name"] == "Tech/Communication Pullback Enhancement"
 
 
@@ -263,6 +265,7 @@ def test_platform_profile_status_matrix_matches_current_ibkr_rollout():
         "soxl_soxx_trend_income",
         "tqqq_growth_income",
         "tech_communication_pullback_enhancement",
+        "mega_cap_leader_rotation_aggressive",
         "mega_cap_leader_rotation_dynamic_top20",
     }
     assert by_profile["global_etf_rotation"] == {
@@ -271,8 +274,6 @@ def test_platform_profile_status_matrix_matches_current_ibkr_rollout():
         "domain": "us_equity",
         "eligible": True,
         "enabled": True,
-        "is_default": True,
-        "is_rollback": True,
         "platform": "ibkr",
     }
     assert by_profile["soxl_soxx_trend_income"]["display_name"] == "SOXL/SOXX Semiconductor Trend Income"
@@ -301,8 +302,6 @@ def test_print_strategy_profile_status_json_matches_registry():
                 "domain",
                 "eligible",
                 "enabled",
-                "is_default",
-                "is_rollback",
                 "platform",
             )
         }
@@ -493,7 +492,7 @@ def test_load_platform_runtime_settings_derives_artifact_paths_from_root(monkeyp
 
 
 def test_load_platform_runtime_settings_uses_account_group_secret(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "ira")
     monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME", "ibkr-account-groups")
 
@@ -539,7 +538,7 @@ def test_load_platform_runtime_settings_uses_account_group_secret(monkeypatch):
 
 
 def test_load_platform_runtime_settings_requires_project_for_secret_source(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "default")
     monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME", "ibkr-account-groups")
 
@@ -552,7 +551,7 @@ def test_load_platform_runtime_settings_requires_project_for_secret_source(monke
 
 
 def test_load_platform_runtime_settings_rejects_unknown_account_group(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "missing")
     monkeypatch.setenv("IB_ACCOUNT_GROUP_CONFIG_JSON", MINIMAL_GROUP_JSON)
 
@@ -562,7 +561,7 @@ def test_load_platform_runtime_settings_rejects_unknown_account_group(monkeypatc
 
 
 def test_load_platform_runtime_settings_requires_key_group_fields(monkeypatch):
-    monkeypatch.setenv("STRATEGY_PROFILE", DEFAULT_STRATEGY_PROFILE)
+    monkeypatch.setenv("STRATEGY_PROFILE", SAMPLE_STRATEGY_PROFILE)
     monkeypatch.setenv("ACCOUNT_GROUP", "default")
     monkeypatch.setenv(
         "IB_ACCOUNT_GROUP_CONFIG_JSON",

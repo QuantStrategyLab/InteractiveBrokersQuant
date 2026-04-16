@@ -42,7 +42,14 @@ def build_switch_plan(profile: str) -> dict[str, object]:
         platform_id=IBKR_PLATFORM,
     )
     requires_feature_snapshot = bool(runtime_requirements["requires_snapshot_artifacts"])
+    requires_snapshot_manifest_path = bool(
+        runtime_requirements["requires_snapshot_manifest_path"]
+    )
     requires_strategy_config_path = bool(runtime_requirements["requires_strategy_config_path"])
+    config_source_policy = str(runtime_requirements.get("config_source_policy") or "none")
+    reconciliation_output_policy = str(
+        runtime_requirements.get("reconciliation_output_policy") or "none"
+    )
 
     set_env: dict[str, str] = {"STRATEGY_PROFILE": definition.profile}
     keep_env = [
@@ -57,20 +64,27 @@ def build_switch_plan(profile: str) -> dict[str, object]:
 
     if requires_feature_snapshot:
         set_env["IBKR_FEATURE_SNAPSHOT_PATH"] = "<required>"
-        set_env["IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH"] = "<required>"
-        if requires_strategy_config_path and artifact_paths.bundled_config_path is not None:
-            set_env["IBKR_STRATEGY_CONFIG_PATH"] = str(artifact_paths.bundled_config_path)
+        if requires_snapshot_manifest_path:
+            set_env["IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH"] = "<required>"
+        else:
+            remove_if_present.append("IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH")
+        if requires_strategy_config_path and config_source_policy == "env_only":
+            set_env["IBKR_STRATEGY_CONFIG_PATH"] = "<required>"
+        elif requires_strategy_config_path and config_source_policy == "bundled_or_env":
+            remove_if_present.append("IBKR_STRATEGY_CONFIG_PATH")
+            notes.append(
+                "IBKR_STRATEGY_CONFIG_PATH is optional for bundled_or_env profiles; leave it unset to use the packaged canonical config."
+            )
+        elif requires_strategy_config_path:
+            set_env["IBKR_STRATEGY_CONFIG_PATH"] = "<required>"
         else:
             remove_if_present.append("IBKR_STRATEGY_CONFIG_PATH")
-        if definition.profile == "tech_communication_pullback_enhancement":
+        if reconciliation_output_policy == "required":
+            set_env["IBKR_RECONCILIATION_OUTPUT_PATH"] = "<required>"
+        elif reconciliation_output_policy == "optional":
             optional_env.append("IBKR_RECONCILIATION_OUTPUT_PATH")
         else:
-            remove_if_present.extend(
-                [
-                    "IBKR_STRATEGY_CONFIG_PATH",
-                    "IBKR_RECONCILIATION_OUTPUT_PATH",
-                ]
-            )
+            remove_if_present.append("IBKR_RECONCILIATION_OUTPUT_PATH")
     else:
         remove_if_present.extend(
             [

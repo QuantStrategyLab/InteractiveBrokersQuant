@@ -404,12 +404,35 @@ def test_print_strategy_switch_env_plan_for_feature_snapshot_profile():
     assert plan["input_mode"] == "feature_snapshot"
     assert plan["requires_snapshot_artifacts"] is True
     assert plan["requires_strategy_config_path"] is True
+    assert plan["config_source_policy"] == "bundled_or_env"
     assert plan["set_env"]["IBKR_FEATURE_SNAPSHOT_PATH"] == "<required>"
     assert plan["set_env"]["IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH"] == "<required>"
-    assert plan["set_env"]["IBKR_STRATEGY_CONFIG_PATH"].endswith(
-        "growth_pullback_tech_communication_pullback_enhancement.json"
-    )
+    assert "IBKR_STRATEGY_CONFIG_PATH" not in plan["set_env"]
+    assert "IBKR_STRATEGY_CONFIG_PATH" in plan["remove_if_present"]
     assert "IBKR_RECONCILIATION_OUTPUT_PATH" in plan["optional_env"]
+
+
+def test_print_strategy_switch_env_plan_uses_manifest_contract_policy():
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SWITCH_PLAN_SCRIPT_PATH),
+            "--profile",
+            "russell_1000_multi_factor_defensive",
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    plan = json.loads(result.stdout)
+    assert plan["canonical_profile"] == "russell_1000_multi_factor_defensive"
+    assert plan["requires_snapshot_artifacts"] is True
+    assert plan["requires_snapshot_manifest_path"] is False
+    assert plan["set_env"]["IBKR_FEATURE_SNAPSHOT_PATH"] == "<required>"
+    assert "IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH" in plan["remove_if_present"]
+    assert "IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH" not in plan["set_env"]
 
 
 
@@ -455,7 +478,7 @@ def test_load_platform_runtime_settings_uses_bundled_tech_pullback_config_when_e
     settings = load_platform_runtime_settings(project_id_resolver=lambda: "project-1")
 
     assert settings.strategy_config_path is not None
-    assert settings.strategy_config_path.endswith("growth_pullback_tech_communication_pullback_enhancement.json")
+    assert settings.strategy_config_path.endswith("tech_communication_pullback_enhancement.json")
     assert settings.strategy_config_source == "bundled_canonical_default"
 
 
@@ -486,7 +509,7 @@ def test_load_platform_runtime_settings_derives_artifact_paths_from_root(monkeyp
         tmp_path / "tech_communication_pullback_enhancement" / "reconciliation"
     )
     assert settings.strategy_config_path is not None
-    assert settings.strategy_config_path.endswith("growth_pullback_tech_communication_pullback_enhancement.json")
+    assert settings.strategy_config_path.endswith("tech_communication_pullback_enhancement.json")
     assert settings.strategy_config_source == "bundled_canonical_default"
 
 

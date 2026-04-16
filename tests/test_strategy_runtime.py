@@ -458,7 +458,7 @@ def test_value_target_runtime_builds_semiconductor_inputs(monkeypatch):
         if symbol == "SOXL":
             return [100.0] * 170
         if symbol == "SOXX":
-            return [200.0] * 20
+            return [200.0] * 170
         raise AssertionError(symbol)
 
     result = runtime.evaluate(

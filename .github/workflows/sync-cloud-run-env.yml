@@ -106,6 +106,12 @@ jobs:
               output.write(
                   f"requires_strategy_config_path={str(bool(selected.get('requires_strategy_config_path'))).lower()}\n"
               )
+              output.write(
+                  f"config_source_policy={str(selected.get('config_source_policy') or 'none')}\n"
+              )
+              output.write(
+                  f"reconciliation_output_policy={str(selected.get('reconciliation_output_policy') or 'none')}\n"
+              )
           PY
 
       - name: Validate env sync inputs
@@ -114,6 +120,8 @@ jobs:
           REQUIRES_SNAPSHOT_ARTIFACTS: ${{ steps.strategy_requirements.outputs.requires_snapshot_artifacts }}
           REQUIRES_SNAPSHOT_MANIFEST_PATH: ${{ steps.strategy_requirements.outputs.requires_snapshot_manifest_path }}
           REQUIRES_STRATEGY_CONFIG_PATH: ${{ steps.strategy_requirements.outputs.requires_strategy_config_path }}
+          CONFIG_SOURCE_POLICY: ${{ steps.strategy_requirements.outputs.config_source_policy }}
+          RECONCILIATION_OUTPUT_POLICY: ${{ steps.strategy_requirements.outputs.reconciliation_output_policy }}
         run: |
           set -euo pipefail
 
@@ -135,8 +143,12 @@ jobs:
             required_vars+=(IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH)
           fi
 
-          if [ "${REQUIRES_STRATEGY_CONFIG_PATH:-}" = "true" ]; then
-            required_vars+=(IBKR_STRATEGY_CONFIG_PATH IBKR_RECONCILIATION_OUTPUT_PATH)
+          if [ "${REQUIRES_STRATEGY_CONFIG_PATH:-}" = "true" ] && [ "${CONFIG_SOURCE_POLICY:-}" = "env_only" ]; then
+            required_vars+=(IBKR_STRATEGY_CONFIG_PATH)
+          fi
+
+          if [ "${RECONCILIATION_OUTPUT_POLICY:-}" = "required" ]; then
+            required_vars+=(IBKR_RECONCILIATION_OUTPUT_PATH)
           fi
 
           missing_vars=()

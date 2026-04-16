@@ -155,7 +155,7 @@ ACCOUNT_GROUP=default
 IB_ACCOUNT_GROUP_CONFIG_SECRET_NAME=ibkr-account-groups
 IBKR_FEATURE_SNAPSHOT_PATH=/var/data/tech_communication_pullback_enhancement_feature_snapshot_latest.csv
 IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH=/var/manifests/tech_communication_pullback_enhancement_feature_snapshot_latest.csv.manifest.json
-IBKR_STRATEGY_CONFIG_PATH=/workspace/research/configs/growth_pullback_tech_communication_pullback_enhancement.json
+# IBKR_STRATEGY_CONFIG_PATH is optional; the bundled canonical default is used when unset.
 IBKR_DRY_RUN_ONLY=true
 GLOBAL_TELEGRAM_CHAT_ID=<telegram-chat-id>
 NOTIFY_LANG=zh

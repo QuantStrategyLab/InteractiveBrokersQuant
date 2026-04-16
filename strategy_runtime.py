@@ -7,6 +7,11 @@ from typing import Any
 import pandas as pd
 
 from quant_platform_kit.common.feature_snapshot import load_feature_snapshot_guarded
+from quant_platform_kit.common.feature_snapshot_runtime import (
+    FeatureSnapshotContextRequest,
+    FeatureSnapshotRuntimeSettings,
+    evaluate_feature_snapshot_strategy,
+)
 from quant_platform_kit.ibkr import (
     build_ibkr_strategy_context,
     build_benchmark_history_inputs,
@@ -244,169 +249,95 @@ class LoadedStrategyRuntime:
         pacing_sec: float,
     ) -> StrategyEvaluationResult:
         del translator, pacing_sec
-        if not self.runtime_settings.feature_snapshot_path:
-            metadata = {
-                "strategy_profile": self.profile,
-                "feature_snapshot_path": None,
-                "strategy_config_path": self.runtime_settings.strategy_config_path,
-                "strategy_config_source": self.runtime_settings.strategy_config_source,
-                "dry_run_only": self.runtime_settings.dry_run_only,
-                "snapshot_guard_decision": "fail_closed",
-                "fail_reason": "feature_snapshot_path_missing",
-                "managed_symbols": (),
-                "status_icon": "🛑",
-            }
-            decision = StrategyDecision(
-                risk_flags=("no_execute",),
-                diagnostics={
-                    "signal_description": "feature snapshot required",
-                    "status_description": "fail_closed | reason=feature_snapshot_path_missing",
-                    "actionable": False,
-                    "snapshot_guard_decision": "fail_closed",
-                    "fail_reason": "feature_snapshot_path_missing",
-                },
-            )
-            return StrategyEvaluationResult(decision=decision, metadata=metadata)
-
-        runtime_config_name = str(
-            self.merged_runtime_config.get("runtime_config_name")
-            or self.runtime_settings.strategy_profile
-        )
         runtime_config_path = self.merged_runtime_config.get("runtime_config_path") or self.runtime_settings.strategy_config_path
-        runtime_config_source = self.merged_runtime_config.get("runtime_config_source") or self.runtime_settings.strategy_config_source
         benchmark_symbol = str(self.merged_runtime_config.get("benchmark_symbol") or "SPY").strip().upper()
-        safe_haven_symbol = str(self.merged_runtime_config.get("safe_haven") or "BOXX").strip().upper()
+        portfolio_snapshot_holder: dict[str, Any] = {}
 
-        guard_result = load_feature_snapshot_guarded(
-            self.runtime_settings.feature_snapshot_path,
-            run_as_of=run_as_of,
-            required_columns=self._required_feature_columns(),
-            snapshot_date_columns=self._snapshot_date_columns(),
-            max_snapshot_month_lag=self._max_snapshot_month_lag(),
-            manifest_path=self.runtime_settings.feature_snapshot_manifest_path,
-            require_manifest=self._require_snapshot_manifest(),
-            expected_strategy_profile=self.profile,
-            expected_config_name=runtime_config_name,
-            expected_config_path=runtime_config_path,
-            expected_contract_version=self._snapshot_contract_version(),
-        )
-        guard_metadata = dict(guard_result.metadata)
-        self.logger(
-            "snapshot_manifest_summary | "
-            f"profile={self.profile} decision={guard_metadata.get('snapshot_guard_decision')} "
-            f"snapshot_path={guard_metadata.get('snapshot_path')} "
-            f"snapshot_as_of={guard_metadata.get('snapshot_as_of')} "
-            f"snapshot_age_days={guard_metadata.get('snapshot_age_days')} "
-            f"snapshot_file_ts={guard_metadata.get('snapshot_file_timestamp')} "
-            f"manifest_path={guard_metadata.get('snapshot_manifest_path')} "
-            f"manifest_exists={guard_metadata.get('snapshot_manifest_exists')} "
-            f"manifest_contract={guard_metadata.get('snapshot_manifest_contract_version')} "
-            f"expected_config={runtime_config_path} "
-            f"expected_profile={self.profile}"
-        )
-        if guard_metadata.get("snapshot_guard_decision") != "proceed":
-            decision_text = str(guard_metadata.get("snapshot_guard_decision") or "fail_closed")
-            reason = guard_metadata.get("fail_reason") or guard_metadata.get("no_op_reason")
-            metadata = {
-                "strategy_profile": self.profile,
-                "strategy_config_path": runtime_config_path,
-                "strategy_config_source": runtime_config_source,
-                "dry_run_only": self.runtime_settings.dry_run_only,
-                "managed_symbols": (),
-                "status_icon": "🛑",
-                **guard_metadata,
-            }
-            decision = StrategyDecision(
-                risk_flags=("no_execute",),
-                diagnostics={
-                    "signal_description": "feature snapshot guard blocked execution",
-                    "status_description": f"{decision_text} | reason={reason}",
-                    "actionable": False,
-                    "snapshot_guard_decision": decision_text,
-                    "fail_reason": guard_metadata.get("fail_reason"),
-                    "no_op_reason": guard_metadata.get("no_op_reason"),
-                },
-            )
-            return StrategyEvaluationResult(decision=decision, metadata=metadata)
+        def build_available_inputs(feature_snapshot) -> Mapping[str, Any]:
+            if _PORTFOLIO_SNAPSHOT_INPUT in self.required_inputs:
+                portfolio_snapshot_holder["portfolio_snapshot"] = fetch_portfolio_snapshot(ib)
+            market_inputs: dict[str, Any] = {_FEATURE_SNAPSHOT_INPUT: feature_snapshot}
+            if _MARKET_HISTORY_INPUT in self.required_inputs:
+                market_inputs.update(build_market_history_inputs(historical_close_loader))
+            if _BENCHMARK_HISTORY_INPUT in self.required_inputs:
+                if historical_candle_loader is None:
+                    raise ValueError(
+                        f"IBKR strategy profile {self.profile!r} requires benchmark_history but no candle loader was provided"
+                    )
+                market_inputs.update(
+                    build_benchmark_history_inputs(
+                        ib,
+                        historical_candle_loader,
+                        benchmark_symbol=benchmark_symbol,
+                    )
+                )
+            return market_inputs
 
-        feature_snapshot = guard_result.frame
-        portfolio_snapshot = None
-        if _PORTFOLIO_SNAPSHOT_INPUT in self.required_inputs:
-            portfolio_snapshot = fetch_portfolio_snapshot(ib)
-        market_inputs: dict[str, Any] = {_FEATURE_SNAPSHOT_INPUT: feature_snapshot}
-        if _MARKET_HISTORY_INPUT in self.required_inputs:
-            market_inputs.update(build_market_history_inputs(historical_close_loader))
-        if _BENCHMARK_HISTORY_INPUT in self.required_inputs:
-            if historical_candle_loader is None:
-                raise ValueError(
-                    f"IBKR strategy profile {self.profile!r} requires benchmark_history but no candle loader was provided"
-                )
-            market_inputs.update(
-                build_benchmark_history_inputs(
-                    ib,
-                    historical_candle_loader,
-                    benchmark_symbol=benchmark_symbol,
-                )
+        def build_context(request: FeatureSnapshotContextRequest):
+            return build_ibkr_strategy_context(
+                entrypoint=request.entrypoint,
+                runtime_adapter=request.runtime_adapter,
+                as_of=request.as_of,
+                market_inputs=request.available_inputs,
+                portfolio_snapshot=portfolio_snapshot_holder.get("portfolio_snapshot"),
+                runtime_config=request.runtime_config,
+                current_holdings=current_holdings,
+                ib=ib,
             )
-        managed_symbols = self._extract_managed_symbols(
+
+        def log_guard_metadata(guard_metadata: Mapping[str, Any]) -> None:
+            self.logger(
+                "snapshot_manifest_summary | "
+                f"profile={self.profile} decision={guard_metadata.get('snapshot_guard_decision')} "
+                f"snapshot_path={guard_metadata.get('snapshot_path')} "
+                f"snapshot_as_of={guard_metadata.get('snapshot_as_of')} "
+                f"snapshot_age_days={guard_metadata.get('snapshot_age_days')} "
+                f"snapshot_file_ts={guard_metadata.get('snapshot_file_timestamp')} "
+                f"manifest_path={guard_metadata.get('snapshot_manifest_path')} "
+                f"manifest_exists={guard_metadata.get('snapshot_manifest_exists')} "
+                f"manifest_contract={guard_metadata.get('snapshot_manifest_contract_version')} "
+                f"expected_config={runtime_config_path} "
+                f"expected_profile={self.profile}"
+            )
+
+        def build_extra_metadata(
             feature_snapshot,
-            benchmark_symbol=benchmark_symbol,
-            safe_haven_symbol=safe_haven_symbol,
-        )
-        ctx = build_ibkr_strategy_context(
+            managed_symbols: tuple[str, ...],
+            _decision: StrategyDecision,
+        ) -> Mapping[str, Any]:
+            return {
+                "trade_date": run_as_of.date().isoformat(),
+                "dry_run_price_fallbacks": self._build_snapshot_close_map(
+                    feature_snapshot,
+                    managed_symbols=managed_symbols,
+                ),
+            }
+
+        result = evaluate_feature_snapshot_strategy(
             entrypoint=self.entrypoint,
             runtime_adapter=self.runtime_adapter,
-            as_of=run_as_of,
-            market_inputs=market_inputs,
-            portfolio_snapshot=portfolio_snapshot,
+            runtime_settings=FeatureSnapshotRuntimeSettings(
+                feature_snapshot_path=self.runtime_settings.feature_snapshot_path,
+                feature_snapshot_manifest_path=self.runtime_settings.feature_snapshot_manifest_path,
+                strategy_config_path=self.runtime_settings.strategy_config_path,
+                strategy_config_source=self.runtime_settings.strategy_config_source,
+                dry_run_only=self.runtime_settings.dry_run_only,
+            ),
             runtime_config=dict(self.runtime_config),
-            current_holdings=current_holdings,
-            ib=ib,
+            merged_runtime_config=self.merged_runtime_config,
+            as_of=run_as_of,
+            base_managed_symbols=(),
+            status_icon=self.status_icon,
+            default_benchmark_symbol="SPY",
+            default_safe_haven_symbol="BOXX",
+            build_available_inputs=build_available_inputs,
+            context_builder=build_context,
+            snapshot_loader=load_feature_snapshot_guarded,
+            on_guard_metadata=log_guard_metadata,
+            extra_success_metadata=build_extra_metadata,
+            catch_evaluation_errors=True,
         )
-        try:
-            decision = self.entrypoint.evaluate(ctx)
-        except Exception as exc:
-            fail_reason = f"feature_snapshot_compute_failed:{type(exc).__name__}:{exc}"
-            metadata = {
-                "strategy_profile": self.profile,
-                "strategy_config_path": runtime_config_path,
-                "strategy_config_source": runtime_config_source,
-                "dry_run_only": self.runtime_settings.dry_run_only,
-                "managed_symbols": (),
-                "status_icon": "🛑",
-                **guard_metadata,
-                "snapshot_guard_decision": "fail_closed",
-                "fail_reason": fail_reason,
-            }
-            decision = StrategyDecision(
-                risk_flags=("no_execute",),
-                diagnostics={
-                    "signal_description": "feature snapshot compute failed",
-                    "status_description": f"fail_closed | reason={fail_reason}",
-                    "actionable": False,
-                    "snapshot_guard_decision": "fail_closed",
-                    "fail_reason": fail_reason,
-                },
-            )
-            return StrategyEvaluationResult(decision=decision, metadata=metadata)
-        snapshot_close_map = self._build_snapshot_close_map(
-            feature_snapshot,
-            managed_symbols=managed_symbols,
-        )
-        metadata = {
-            "strategy_profile": self.profile,
-            "feature_snapshot_path": self.runtime_settings.feature_snapshot_path,
-            "strategy_config_path": runtime_config_path,
-            "strategy_config_source": runtime_config_source,
-            "safe_haven_symbol": safe_haven_symbol,
-            "dry_run_only": self.runtime_settings.dry_run_only,
-            "trade_date": run_as_of.date().isoformat(),
-            "managed_symbols": managed_symbols,
-            "dry_run_price_fallbacks": snapshot_close_map,
-            "status_icon": self.status_icon,
-            **guard_metadata,
-        }
-        return StrategyEvaluationResult(decision=decision, metadata=metadata)
+        return StrategyEvaluationResult(decision=result.decision, metadata=result.metadata)
 
     def _build_snapshot_close_map(
         self,
@@ -437,45 +368,6 @@ class LoadedStrategyRuntime:
             str(row["symbol"]): float(row["close_numeric"])
             for _, row in deduped.iterrows()
         }
-
-    def _extract_managed_symbols(
-        self,
-        feature_snapshot,
-        *,
-        benchmark_symbol: str,
-        safe_haven_symbol: str,
-    ) -> tuple[str, ...]:
-        extractor = self.runtime_adapter.managed_symbols_extractor
-        if extractor is None:
-            if safe_haven_symbol:
-                return (safe_haven_symbol,)
-            return ()
-        if callable(extractor):
-            return tuple(
-                extractor(
-                    feature_snapshot,
-                    benchmark_symbol=benchmark_symbol,
-                    safe_haven=safe_haven_symbol,
-                )
-            )
-        if safe_haven_symbol:
-            return (safe_haven_symbol,)
-        return ()
-
-    def _required_feature_columns(self) -> tuple[str, ...] | frozenset[str]:
-        return self.runtime_adapter.required_feature_columns
-
-    def _snapshot_date_columns(self) -> tuple[str, ...]:
-        return tuple(self.runtime_adapter.snapshot_date_columns)
-
-    def _max_snapshot_month_lag(self) -> int:
-        return int(self.runtime_adapter.max_snapshot_month_lag)
-
-    def _require_snapshot_manifest(self) -> bool:
-        return bool(self.runtime_adapter.require_snapshot_manifest)
-
-    def _snapshot_contract_version(self) -> str | None:
-        return self.runtime_adapter.snapshot_contract_version
 
     def load_runtime_parameters(self) -> dict[str, Any]:
         runtime_loader = self.runtime_adapter.runtime_parameter_loader

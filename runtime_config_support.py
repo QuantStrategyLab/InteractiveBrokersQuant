@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from quant_platform_kit.common.strategies import derive_strategy_artifact_paths
+from quant_platform_kit.common.runtime_config import (
+    first_non_empty,
+    resolve_bool_value,
+    resolve_strategy_runtime_path_settings,
+)
 from strategy_registry import (
     IBKR_PLATFORM,
     resolve_strategy_definition,
@@ -71,26 +75,14 @@ def load_platform_runtime_settings(
         strategy_definition.profile,
         platform_id=IBKR_PLATFORM,
     )
-    artifact_root = first_non_empty(
-        os.getenv("IBKR_STRATEGY_ARTIFACT_ROOT"),
-        os.getenv("STRATEGY_ARTIFACT_ROOT"),
-    )
-    derived_artifact_paths = derive_strategy_artifact_paths(
-        get_strategy_catalog(),
-        strategy_definition.profile,
-        artifact_root=artifact_root,
+    runtime_paths = resolve_strategy_runtime_path_settings(
+        strategy_catalog=get_strategy_catalog(),
+        strategy_definition=strategy_definition,
+        strategy_metadata=strategy_metadata,
+        platform_env_prefix="IBKR",
+        env=os.environ,
         repo_root=Path(__file__).resolve().parent,
-    )
-    strategy_config_path, strategy_config_source = resolve_strategy_config_path(
-        explicit_path=first_non_empty(
-            os.getenv("IBKR_STRATEGY_CONFIG_PATH"),
-            os.getenv("STRATEGY_CONFIG_PATH"),
-        ),
-        bundled_path=(
-            str(derived_artifact_paths.bundled_config_path)
-            if derived_artifact_paths.bundled_config_path is not None
-            else None
-        ),
+        include_reconciliation_output=True,
     )
     account_group = resolve_account_group(os.getenv("ACCOUNT_GROUP"))
     group_config = load_account_group_config(
@@ -131,40 +123,18 @@ def load_platform_runtime_settings(
             field_name="ib_client_id",
             account_group=account_group,
         ),
-        strategy_profile=strategy_definition.profile,
-        strategy_display_name=strategy_metadata.display_name,
-        strategy_domain=strategy_definition.domain,
-        strategy_target_mode=strategy_definition.target_mode,
-        strategy_artifact_root=str(derived_artifact_paths.artifact_root)
-        if derived_artifact_paths.artifact_root is not None
-        else None,
-        strategy_artifact_dir=str(derived_artifact_paths.artifact_dir)
-        if derived_artifact_paths.artifact_dir is not None
-        else None,
-        feature_snapshot_path=first_non_empty(
-            os.getenv("IBKR_FEATURE_SNAPSHOT_PATH"),
-            os.getenv("FEATURE_SNAPSHOT_PATH"),
-            str(derived_artifact_paths.feature_snapshot_path)
-            if derived_artifact_paths.feature_snapshot_path is not None
-            else None,
-        ),
-        feature_snapshot_manifest_path=first_non_empty(
-            os.getenv("IBKR_FEATURE_SNAPSHOT_MANIFEST_PATH"),
-            os.getenv("FEATURE_SNAPSHOT_MANIFEST_PATH"),
-            str(derived_artifact_paths.feature_snapshot_manifest_path)
-            if derived_artifact_paths.feature_snapshot_manifest_path is not None
-            else None,
-        ),
-        strategy_config_path=strategy_config_path,
-        strategy_config_source=strategy_config_source,
-        reconciliation_output_path=first_non_empty(
-            os.getenv("IBKR_RECONCILIATION_OUTPUT_PATH"),
-            os.getenv("RECONCILIATION_OUTPUT_PATH"),
-            str(derived_artifact_paths.reconciliation_output_dir)
-            if derived_artifact_paths.reconciliation_output_dir is not None
-            else None,
-        ),
-        dry_run_only=resolve_bool_env(os.getenv("IBKR_DRY_RUN_ONLY")),
+        strategy_profile=runtime_paths.strategy_profile,
+        strategy_display_name=runtime_paths.strategy_display_name,
+        strategy_domain=runtime_paths.strategy_domain,
+        strategy_target_mode=runtime_paths.strategy_target_mode,
+        strategy_artifact_root=runtime_paths.strategy_artifact_root,
+        strategy_artifact_dir=runtime_paths.strategy_artifact_dir,
+        feature_snapshot_path=runtime_paths.feature_snapshot_path,
+        feature_snapshot_manifest_path=runtime_paths.feature_snapshot_manifest_path,
+        strategy_config_path=runtime_paths.strategy_config_path,
+        strategy_config_source=runtime_paths.strategy_config_source,
+        reconciliation_output_path=runtime_paths.reconciliation_output_path,
+        dry_run_only=resolve_bool_value(os.getenv("IBKR_DRY_RUN_ONLY")),
         account_group=account_group,
         service_name=group_config.service_name,
         account_ids=group_config.account_ids,
@@ -186,21 +156,6 @@ def resolve_account_group(raw_value: str | None) -> str:
     if not value:
         raise EnvironmentError("ACCOUNT_GROUP is required")
     return value
-
-
-def resolve_strategy_config_path(
-    *,
-    explicit_path: str | None,
-    bundled_path: str | None,
-) -> tuple[str | None, str | None]:
-    path = first_non_empty(explicit_path)
-    if path is not None:
-        return path, "env"
-
-    bundled = first_non_empty(bundled_path)
-    if bundled is not None and Path(bundled).exists():
-        return bundled, "bundled_canonical_default"
-    return None, None
 
 
 def load_account_group_config(
@@ -306,19 +261,6 @@ def normalize_optional_string(raw_value: Any) -> str | None:
         return None
     value = str(raw_value).strip()
     return value or None
-
-
-def first_non_empty(*values: str | None) -> str | None:
-    for value in values:
-        normalized = normalize_optional_string(value)
-        if normalized is not None:
-            return normalized
-    return None
-
-
-def resolve_bool_env(raw_value: str | None) -> bool:
-    value = str(raw_value or "").strip().lower()
-    return value in {"1", "true", "yes", "y", "on"}
 
 
 def require_group_string(

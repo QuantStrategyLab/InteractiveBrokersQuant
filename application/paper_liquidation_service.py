@@ -6,6 +6,18 @@ from dataclasses import asdict, is_dataclass
 from typing import Any
 
 
+ACCEPTED_ORDER_STATUSES = {
+    "PendingSubmit",
+    "ApiPending",
+    "ApiPendingSubmit",
+    "Submitted",
+    "PreSubmitted",
+    "Filled",
+    "PartiallyFilled",
+    "Partial",
+}
+
+
 def _position_symbol(position: Any, *, fallback: str | None = None) -> str:
     if isinstance(position, dict):
         return str(position.get("symbol") or fallback or "").strip().upper()
@@ -88,7 +100,7 @@ def execute_paper_liquidation(
         report = submit_order_intent(ib, intent)
         payload = _report_to_dict(report)
         status = str(payload.get("status") or "")
-        if status in {"Submitted", "PreSubmitted", "Filled", "PartiallyFilled", "Partial"}:
+        if status in ACCEPTED_ORDER_STATUSES:
             summary["orders_submitted"].append(payload)
         else:
             summary["orders_skipped"].append({**payload, "reason": status or "submit_failed"})

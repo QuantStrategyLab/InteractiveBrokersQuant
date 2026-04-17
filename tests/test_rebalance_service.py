@@ -25,6 +25,9 @@ def _build_test_translator():
         "buying_power": "buying_power",
         "empty_positions": "(empty positions)",
         "empty_target_weights": "(empty target positions)",
+        "account_summary_title": "Account Summary",
+        "positions_title": "Current Positions",
+        "execution_summary_title": "Execution Summary",
         "target_weights_title": "Target Weights",
         "strategy_label": "strategy={name}",
         "strategy_profile_detail": "strategy_profile={profile}",
@@ -85,6 +88,9 @@ def test_build_dashboard_localizes_strategy_details():
     )
 
     assert "🧭 策略: 全球 ETF 轮动" in dashboard
+    assert "📊 账户摘要" in dashboard
+    assert "💼 当前持仓" in dashboard
+    assert "🧾 执行摘要" in dashboard
     assert "目标持仓" in dashboard
     assert "市场阶段=risk_off" in dashboard
     assert "快照路径" not in dashboard
@@ -209,6 +215,9 @@ def test_run_strategy_core_passes_signal_metadata_to_execution():
     assert observed["strategy_symbols"] == ("AAA", "BOXX")
     assert observed["signal_metadata"]["managed_symbols"] == ("AAA", "BOXX")
     assert observed["messages"]
+    assert "Account Summary" in observed["messages"][0]
+    assert "Current Positions" in observed["messages"][0]
+    assert "Execution Summary" in observed["messages"][0]
     assert "📏 breadth=60.0%" in observed["messages"][0]
     assert "Target Weights" in observed["messages"][0]
 

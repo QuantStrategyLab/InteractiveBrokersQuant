@@ -5,6 +5,9 @@ from strategy_registry import SUPPORTED_STRATEGY_PROFILES
 def test_build_translator_supports_chinese():
     translate = build_translator("zh")
     assert translate("equity") == "净值"
+    assert translate("account_summary_title") == "📊 账户摘要"
+    assert translate("positions_title") == "💼 当前持仓"
+    assert translate("execution_summary_title") == "🧾 执行摘要"
     assert translate("target_weights_title") == "目标持仓"
     assert translate("market_status_risk_on", asset="SOXL") == "🚀 风险开启（SOXL）"
     assert translate("signal_risk_on", window=150, ratio="40.2%") == "SOXL 站上 150 日均线，持有 SOXL，交易层风险仓位 40.2%"

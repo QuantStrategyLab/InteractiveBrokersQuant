@@ -288,13 +288,13 @@ def build_dashboard(
         qty = positions[symbol]["quantity"]
         avg = positions[symbol]["avg_cost"]
         market_value = qty * avg
-        position_lines.append(f"  {symbol}: {qty}股 ${market_value:,.2f}")
+        position_lines.append(f"  - {symbol}: {qty}股 | ${market_value:,.2f}")
     position_text = "\n".join(position_lines) if position_lines else translator("empty_positions")
     signal_metadata = signal_metadata or {}
     allocation = _resolve_weight_allocation(signal_metadata, required=False)
     target_lines = []
     for symbol, weight in sorted(allocation.get("targets", {}).items(), key=lambda item: (-item[1], item[0])):
-        target_lines.append(f"  {symbol}: {weight:.1%}")
+        target_lines.append(f"  - {symbol}: {weight:.1%}")
     target_text = "\n".join(target_lines) if target_lines else translator("empty_target_weights")
     regime = signal_metadata.get("regime")
     breadth_ratio = signal_metadata.get("breadth_ratio")
@@ -323,14 +323,19 @@ def build_dashboard(
         else None,
         translator("snapshot_as_of_detail", value=_format_text(snapshot_as_of, fallback="<none>")) if snapshot_as_of else None,
     ]
-    diagnostics_text = " | ".join(part for part in diagnostics if part)
+    diagnostics_lines = [f"  - {part}" for part in diagnostics if part]
+    diagnostics_text = "\n".join(diagnostics_lines)
     localized_status_desc = _localize_notification_text(status_desc, translator=translator)
     localized_signal_desc = _localize_notification_text(signal_desc, translator=translator)
     return (
-        f"{translator('equity')}: ${equity:,.2f} | {translator('buying_power')}: ${buying_power:,.2f}\n"
+        f"{translator('account_summary_title')}\n"
+        f"  - {translator('equity')}: ${equity:,.2f}\n"
+        f"  - {translator('buying_power')}: ${buying_power:,.2f}\n"
         f"{separator}\n"
+        f"{translator('positions_title')}\n"
         f"{position_text}\n"
         f"{separator}\n"
+        f"{translator('execution_summary_title')}\n"
         f"{diagnostics_text}\n"
         f"{separator}\n"
         f"{status_icon} {localized_status_desc}\n"

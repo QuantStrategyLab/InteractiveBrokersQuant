@@ -1,4 +1,5 @@
 from notifications.telegram import build_strategy_display_name, build_translator, send_telegram_message
+from strategy_registry import SUPPORTED_STRATEGY_PROFILES
 
 
 def test_build_translator_supports_chinese():
@@ -24,10 +25,21 @@ def test_strategy_display_name_translates_new_live_profiles():
     zh_name = build_strategy_display_name(build_translator("zh"))
     en_name = build_strategy_display_name(build_translator("en"))
 
+    assert zh_name("mega_cap_leader_rotation_aggressive") == "Mega Cap 激进龙头轮动"
     assert zh_name("mega_cap_leader_rotation_dynamic_top20") == "Mega Cap 动态 Top20 龙头轮动"
     assert zh_name("dynamic_mega_leveraged_pullback") == "Mega Cap 2x 回调策略"
+    assert en_name("mega_cap_leader_rotation_aggressive") == "Mega Cap Leader Rotation Aggressive"
     assert en_name("mega_cap_leader_rotation_dynamic_top20") == "Mega Cap Leader Rotation Dynamic Top20"
     assert en_name("dynamic_mega_leveraged_pullback") == "Dynamic Mega Leveraged Pullback"
+
+
+def test_supported_strategy_profiles_have_translated_names():
+    zh_name = build_strategy_display_name(build_translator("zh"))
+    en_name = build_strategy_display_name(build_translator("en"))
+
+    for profile in SUPPORTED_STRATEGY_PROFILES:
+        assert zh_name(profile) != profile
+        assert en_name(profile) != profile
 
 
 def test_send_telegram_message_logs_non_200_response(capsys):

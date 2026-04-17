@@ -90,3 +90,26 @@ def test_execute_paper_liquidation_submits_market_orders():
     assert [(intent.symbol, intent.side, intent.quantity) for intent in submitted] == [("AAPL", "sell", 3)]
     assert summary["execution_status"] == "submitted"
     assert summary["orders_submitted"][0]["symbol"] == "AAPL"
+
+
+def test_execute_paper_liquidation_treats_pending_submit_as_submitted():
+    def submit(_ib, intent):
+        return SimpleNamespace(
+            symbol=intent.symbol,
+            side=intent.side,
+            quantity=intent.quantity,
+            status="PendingSubmit",
+            broker_order_id="1",
+        )
+
+    summary = execute_paper_liquidation(
+        object(),
+        {"AAPL": {"symbol": "AAPL", "quantity": 3}},
+        submit_order_intent=submit,
+        order_intent_cls=OrderIntent,
+        dry_run_only=False,
+    )
+
+    assert summary["execution_status"] == "submitted"
+    assert summary["orders_submitted"][0]["status"] == "PendingSubmit"
+    assert summary["orders_skipped"] == []

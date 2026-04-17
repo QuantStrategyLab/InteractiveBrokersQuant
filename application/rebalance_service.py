@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from application.reconciliation_service import (
     build_reconciliation_record,
@@ -88,6 +89,7 @@ _ZH_REASON_REPLACEMENTS = (
     ("fail_reason=", "失败原因="),
     ("decision=", "决策="),
 )
+_DETAIL_FIELD_SPLIT_RE = re.compile(r"\s+(?=[^\s=:：]+[=:：])")
 
 
 def _format_text(value, *, fallback: str) -> str:
@@ -119,6 +121,34 @@ def _localize_notification_text(text: str, *, translator) -> str:
     for source, target in _ZH_REASON_REPLACEMENTS:
         localized = localized.replace(source, target)
     return localized
+
+
+def _split_detail_segment(text: str) -> list[str]:
+    value = str(text or "").strip()
+    if not value:
+        return []
+    if "=" not in value and ":" not in value and "：" not in value:
+        return [value]
+    return [part.strip() for part in _DETAIL_FIELD_SPLIT_RE.split(value) if part.strip()]
+
+
+def _split_labeled_text(text: str) -> list[str]:
+    segments = [segment.strip() for segment in str(text or "").split(" | ") if segment.strip()]
+    if not segments:
+        return []
+    lines = [segments[0]]
+    for segment in segments[1:]:
+        lines.extend(_split_detail_segment(segment))
+    return lines
+
+
+def _format_prefixed_text(prefix: str, text: str) -> list[str]:
+    parts = _split_labeled_text(text)
+    if not parts:
+        return []
+    lines = [f"{prefix} {parts[0]}".strip()]
+    lines.extend(f"  - {part}" for part in parts[1:])
+    return lines
 
 
 def _summarize_target_changes(target_vs_current, *, limit: int = 5) -> str | None:
@@ -240,7 +270,7 @@ def _build_notification_trade_lines(
         if "same_day_execution_locked" in text or "当日执行锁已存在" in text:
             continue
         if text not in lines:
-            lines.append(text)
+            lines.extend(_split_labeled_text(text))
 
     return lines
 
@@ -327,6 +357,10 @@ def build_dashboard(
     diagnostics_text = "\n".join(diagnostics_lines)
     localized_status_desc = _localize_notification_text(status_desc, translator=translator)
     localized_signal_desc = _localize_notification_text(signal_desc, translator=translator)
+    status_lines = _format_prefixed_text(status_icon, localized_status_desc)
+    signal_lines = _format_prefixed_text("🎯", localized_signal_desc)
+    status_text = "\n".join(status_lines)
+    signal_text = "\n".join(signal_lines)
     return (
         f"{translator('account_summary_title')}\n"
         f"  - {translator('equity')}: ${equity:,.2f}\n"
@@ -338,8 +372,8 @@ def build_dashboard(
         f"{translator('execution_summary_title')}\n"
         f"{diagnostics_text}\n"
         f"{separator}\n"
-        f"{status_icon} {localized_status_desc}\n"
-        f"🎯 {localized_signal_desc}\n"
+        f"{status_text}\n"
+        f"{signal_text}\n"
         f"{separator}\n"
         f"{translator('target_weights_title')}:\n{target_text}"
     )
@@ -397,6 +431,7 @@ def run_strategy_core(
                 no_op_text = f"{no_op_text} | {_localize_notification_text(f'reason={no_op_reason}', translator=translator)}"
             if fail_reason:
                 no_op_text = f"{no_op_text} | {_localize_notification_text(f'fail_reason={fail_reason}', translator=translator)}"
+            no_op_text = "\n".join(_split_labeled_text(no_op_text))
             record = build_reconciliation_record(
                 strategy_profile=signal_metadata.get("strategy_profile"),
                 mode="dry_run" if signal_metadata.get("dry_run_only") else "paper",

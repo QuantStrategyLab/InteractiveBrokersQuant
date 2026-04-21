@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from quant_platform_kit.strategy_contracts import build_execution_timing_metadata
 from runtime_logging import RuntimeLogContext
 
 
@@ -33,6 +34,7 @@ class IBKRRuntimeReportingAdapters:
     strategy_display_name: str = ""
     strategy_display_name_localized: str = ""
     dry_run: bool = False
+    signal_effective_after_trading_days: int | None = None
     strategy_config_source: str | None = None
     ib_gateway_host_resolver: Callable[[], str] | None = None
     ib_gateway_port: int = 0
@@ -84,6 +86,11 @@ class IBKRRuntimeReportingAdapters:
         )
 
     def build_report(self, log_context: RuntimeLogContext) -> dict[str, Any]:
+        started_at = self.clock()
+        timing_summary = build_execution_timing_metadata(
+            signal_date=started_at,
+            signal_effective_after_trading_days=self.signal_effective_after_trading_days,
+        )
         return self.report_builder(
             platform=log_context.platform,
             deploy_target=log_context.deploy_target,
@@ -95,7 +102,7 @@ class IBKRRuntimeReportingAdapters:
             run_id=log_context.run_id,
             run_source="cloud_run",
             dry_run=self.dry_run,
-            started_at=self.clock(),
+            started_at=started_at,
             summary={
                 "account_ids": list(self.extra_context_fields.get("account_ids") or ()),
                 "managed_symbols": list(self.managed_symbols),
@@ -104,6 +111,7 @@ class IBKRRuntimeReportingAdapters:
                 "safe_haven": self.safe_haven,
                 "strategy_display_name": self.strategy_display_name,
                 "strategy_display_name_localized": self.strategy_display_name_localized,
+                **timing_summary,
             },
             diagnostics={
                 "strategy_config_source": self.strategy_config_source,
@@ -165,6 +173,7 @@ def build_runtime_reporting_adapters(
     strategy_display_name: str,
     strategy_display_name_localized: str,
     dry_run: bool,
+    signal_effective_after_trading_days: int | None,
     strategy_config_source: str | None,
     ib_gateway_host_resolver: Callable[[], str],
     ib_gateway_port: int,
@@ -204,6 +213,7 @@ def build_runtime_reporting_adapters(
         strategy_display_name=str(strategy_display_name or ""),
         strategy_display_name_localized=str(strategy_display_name_localized or ""),
         dry_run=bool(dry_run),
+        signal_effective_after_trading_days=signal_effective_after_trading_days,
         strategy_config_source=strategy_config_source,
         ib_gateway_host_resolver=ib_gateway_host_resolver,
         ib_gateway_port=int(ib_gateway_port),

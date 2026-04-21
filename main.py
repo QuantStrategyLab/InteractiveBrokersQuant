@@ -196,6 +196,11 @@ STRATEGY_SIGNAL_SOURCE = (
     else "market_data"
 )
 STRATEGY_STATUS_ICON = STRATEGY_RUNTIME.status_icon
+SIGNAL_EFFECTIVE_AFTER_TRADING_DAYS = getattr(
+    getattr(STRATEGY_RUNTIME.runtime_adapter, "runtime_policy", None),
+    "signal_effective_after_trading_days",
+    None,
+)
 FEATURE_RUNTIME_PARAMETERS = dict(STRATEGY_RUNTIME.runtime_config)
 STRATEGY_RUNTIME_CONFIG = dict(STRATEGY_RUNTIME.merged_runtime_config)
 SAFE_HAVEN = str(STRATEGY_RUNTIME_CONFIG.get("safe_haven") or "BIL")
@@ -332,6 +337,7 @@ def build_composer():
         strategy_display_name=STRATEGY_DISPLAY_NAME,
         strategy_display_name_localized=strategy_display_name,
         managed_symbols=resolve_reporting_managed_symbols(),
+        signal_effective_after_trading_days=SIGNAL_EFFECTIVE_AFTER_TRADING_DAYS,
         signal_source=STRATEGY_SIGNAL_SOURCE,
         status_icon=STRATEGY_STATUS_ICON,
         safe_haven=SAFE_HAVEN,

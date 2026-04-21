@@ -303,16 +303,45 @@ def _format_dashboard_text(text) -> str:
     return "\n".join(lines)
 
 
-def _strategy_dashboard_text(signal_metadata) -> str:
+def _build_timing_audit_lines(signal_metadata, *, translator) -> list[str]:
     metadata = signal_metadata if isinstance(signal_metadata, Mapping) else {}
     raw_annotations = metadata.get("execution_annotations")
     annotations = raw_annotations if isinstance(raw_annotations, Mapping) else {}
-    return _format_dashboard_text(
+    signal_date = str(annotations.get("signal_date") or metadata.get("signal_date") or "").strip()
+    effective_date = str(annotations.get("effective_date") or metadata.get("effective_date") or "").strip()
+    contract = str(
+        annotations.get("execution_timing_contract")
+        or metadata.get("execution_timing_contract")
+        or ""
+    ).strip()
+    if not signal_date and not effective_date and not contract:
+        return []
+    label = "⏱ 执行时点" if _translator_uses_zh(translator) else "⏱ Timing"
+    if signal_date and effective_date:
+        value = f"{signal_date} -> {effective_date}"
+    else:
+        value = signal_date or effective_date or contract
+    if contract and contract not in value:
+        value = f"{value} ({contract})" if value else contract
+    return [f"{label}: {value}"]
+
+
+def _strategy_dashboard_text(signal_metadata, *, translator) -> str:
+    metadata = signal_metadata if isinstance(signal_metadata, Mapping) else {}
+    raw_annotations = metadata.get("execution_annotations")
+    annotations = raw_annotations if isinstance(raw_annotations, Mapping) else {}
+    dashboard_text = _format_dashboard_text(
         annotations.get("dashboard_text")
         or metadata.get("dashboard_text")
         or metadata.get("dashboard")
         or ""
     )
+    timing_lines = _build_timing_audit_lines(metadata, translator=translator)
+    if not timing_lines:
+        return dashboard_text
+    if not dashboard_text:
+        return "\n".join(timing_lines)
+    return f"{dashboard_text}\n" + "\n".join(timing_lines)
 
 
 def build_dashboard(
@@ -330,7 +359,7 @@ def build_dashboard(
     status_icon="🐤",
 ):
     signal_metadata = signal_metadata or {}
-    strategy_dashboard = _strategy_dashboard_text(signal_metadata)
+    strategy_dashboard = _strategy_dashboard_text(signal_metadata, translator=translator)
     if strategy_dashboard:
         return strategy_dashboard
     equity = account_values.get("equity", 0)
@@ -375,6 +404,7 @@ def build_dashboard(
         translator("snapshot_as_of_detail", value=_format_text(snapshot_as_of, fallback="<none>")) if snapshot_as_of else None,
     ]
     diagnostics_lines = [f"  - {part}" for part in diagnostics if part]
+    diagnostics_lines.extend(_build_timing_audit_lines(signal_metadata, translator=translator))
     diagnostics_text = "\n".join(diagnostics_lines)
     localized_status_desc = _localize_notification_text(status_desc, translator=translator)
     localized_signal_desc = _localize_notification_text(signal_desc, translator=translator)

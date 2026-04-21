@@ -23,6 +23,8 @@ from quant_platform_kit.strategy_contracts import (
     StrategyDecision,
     StrategyEntrypoint,
     StrategyRuntimeAdapter,
+    apply_runtime_policy_to_runtime_config,
+    build_execution_timing_metadata,
     build_strategy_context_from_available_inputs,
     build_strategy_evaluation_inputs,
 )
@@ -193,6 +195,7 @@ class LoadedStrategyRuntime:
         runtime_config = dict(self.runtime_config)
         runtime_config.setdefault("translator", translator)
         runtime_config.setdefault("pacing_sec", float(pacing_sec))
+        apply_runtime_policy_to_runtime_config(runtime_config, self.runtime_adapter)
         portfolio_snapshot = self._fetch_portfolio_snapshot_for_context(ib, required=False)
         ctx = self._build_strategy_context(
             runtime_adapter=self.runtime_adapter,
@@ -215,6 +218,12 @@ class LoadedStrategyRuntime:
             "managed_symbols": managed_symbols,
             "status_icon": self.status_icon,
             "dry_run_only": self.runtime_settings.dry_run_only,
+            **build_execution_timing_metadata(
+                signal_date=run_as_of,
+                signal_effective_after_trading_days=(
+                    self.runtime_adapter.runtime_policy.signal_effective_after_trading_days
+                ),
+            ),
         }
         if portfolio_snapshot is not None:
             metadata["portfolio_total_equity"] = float(getattr(portfolio_snapshot, "total_equity", 0.0) or 0.0)
@@ -235,6 +244,7 @@ class LoadedStrategyRuntime:
     ) -> StrategyEvaluationResult:
         runtime_config = dict(self.runtime_config)
         runtime_config.setdefault("translator", translator)
+        apply_runtime_policy_to_runtime_config(runtime_config, self.runtime_adapter)
         portfolio_snapshot = fetch_portfolio_snapshot(ib)
         market_inputs = self._build_value_target_market_inputs(
             ib=ib,
@@ -265,6 +275,12 @@ class LoadedStrategyRuntime:
             "status_icon": self.status_icon,
             "dry_run_only": self.runtime_settings.dry_run_only,
             "portfolio_total_equity": float(portfolio_snapshot.total_equity),
+            **build_execution_timing_metadata(
+                signal_date=run_as_of,
+                signal_effective_after_trading_days=(
+                    self.runtime_adapter.runtime_policy.signal_effective_after_trading_days
+                ),
+            ),
         }
         if safe_haven_symbol:
             metadata["safe_haven_symbol"] = str(safe_haven_symbol)

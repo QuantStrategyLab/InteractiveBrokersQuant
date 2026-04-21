@@ -34,6 +34,7 @@ def test_runtime_composer_builds_runtime_and_config_from_local_builders():
         strategy_display_name="Global ETF Rotation",
         strategy_display_name_localized="全球 ETF 轮动",
         managed_symbols=("AAA", "BIL"),
+        signal_effective_after_trading_days=1,
         signal_source="market_data",
         status_icon="🐤",
         safe_haven="BIL",
@@ -79,6 +80,7 @@ def test_runtime_composer_builds_runtime_and_config_from_local_builders():
     assert observed["notification_builder"]["send_message"]
     assert observed["reporting_builder"]["account_scope"] == "default"
     assert observed["reporting_builder"]["managed_symbols"] == ("AAA", "BIL")
+    assert observed["reporting_builder"]["signal_effective_after_trading_days"] == 1
     assert runtime.connect_ib() == "ib-connection"
     assert runtime.portfolio_port_factory("ib").get_portfolio_snapshot() == ("portfolio-snapshot", "ib")
     assert runtime.compute_signals == "compute-signals"

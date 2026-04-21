@@ -26,6 +26,7 @@ class IBKRRuntimeComposer:
     strategy_display_name: str
     strategy_display_name_localized: str
     managed_symbols: tuple[str, ...]
+    signal_effective_after_trading_days: int | None
     signal_source: str
     status_icon: str
     safe_haven: str
@@ -89,6 +90,7 @@ class IBKRRuntimeComposer:
             strategy_display_name=self.strategy_display_name,
             strategy_display_name_localized=self.strategy_display_name_localized,
             dry_run=self.dry_run_only,
+            signal_effective_after_trading_days=self.signal_effective_after_trading_days,
             strategy_config_source=self.strategy_config_source,
             ib_gateway_host_resolver=self.ib_gateway_host_resolver,
             ib_gateway_port=self.ib_gateway_port,
@@ -145,6 +147,7 @@ def build_runtime_composer(
     strategy_display_name: str,
     strategy_display_name_localized: str,
     managed_symbols: tuple[str, ...],
+    signal_effective_after_trading_days: int | None,
     signal_source: str,
     status_icon: str,
     safe_haven: str,
@@ -188,6 +191,7 @@ def build_runtime_composer(
         strategy_display_name=str(strategy_display_name or ""),
         strategy_display_name_localized=str(strategy_display_name_localized or ""),
         managed_symbols=tuple(managed_symbols),
+        signal_effective_after_trading_days=signal_effective_after_trading_days,
         signal_source=str(signal_source or ""),
         status_icon=str(status_icon or ""),
         safe_haven=str(safe_haven or ""),

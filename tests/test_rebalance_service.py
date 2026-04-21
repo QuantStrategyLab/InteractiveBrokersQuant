@@ -202,6 +202,9 @@ def test_run_strategy_core_passes_signal_metadata_to_execution():
             {
                 "managed_symbols": ("AAA", "BOXX"),
                 "status_icon": "📏",
+                "signal_date": "2026-04-01",
+                "effective_date": "2026-04-02",
+                "execution_timing_contract": "next_trading_day",
                 "execution_annotations": {
                     "dashboard_text": (
                         "📌 Strategy portfolio\n"
@@ -237,6 +240,7 @@ def test_run_strategy_core_passes_signal_metadata_to_execution():
     assert "Total assets (strategy symbols + cash): $1,000.00" in observed["messages"][0]
     assert "💼 Strategy holdings" in observed["messages"][0]
     assert "📏 breadth=60.0%" in observed["messages"][0]
+    assert "⏱ Timing: 2026-04-01 -> 2026-04-02 (next_trading_day)" in observed["messages"][0]
     assert "Target Weights" not in observed["messages"][0]
 
 

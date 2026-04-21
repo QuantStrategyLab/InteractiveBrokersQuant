@@ -6,6 +6,7 @@ from quant_platform_kit.strategy_contracts import (
     StrategyDecision,
     StrategyManifest,
     StrategyRuntimeAdapter,
+    StrategyRuntimePolicy,
 )
 from runtime_config_support import PlatformRuntimeSettings
 
@@ -335,6 +336,7 @@ def test_market_history_runtime_uses_canonical_market_history_key(monkeypatch):
         def evaluate(self, ctx):
             captured["market_data"] = dict(ctx.market_data)
             captured["portfolio"] = ctx.portfolio
+            captured["runtime_config"] = dict(ctx.runtime_config)
             return StrategyDecision()
 
     def loader(*_args, **_kwargs):
@@ -342,7 +344,10 @@ def test_market_history_runtime_uses_canonical_market_history_key(monkeypatch):
 
     runtime = strategy_runtime_module.LoadedStrategyRuntime(
         entrypoint=FakeEntrypoint(),
-        runtime_adapter=StrategyRuntimeAdapter(status_icon="🐤"),
+        runtime_adapter=StrategyRuntimeAdapter(
+            status_icon="🐤",
+            runtime_policy=StrategyRuntimePolicy(signal_effective_after_trading_days=1),
+        ),
         runtime_settings=_build_runtime_settings(profile="global_etf_rotation"),
         runtime_config={},
         merged_runtime_config={"safe_haven": "BIL", "ranking_pool": ("AAA",)},
@@ -352,7 +357,7 @@ def test_market_history_runtime_uses_canonical_market_history_key(monkeypatch):
     portfolio_snapshot = SimpleNamespace(total_equity=1200.0)
     monkeypatch.setattr(strategy_runtime_module, "fetch_portfolio_snapshot", lambda _ib: portfolio_snapshot)
 
-    runtime.evaluate(
+    result = runtime.evaluate(
         ib="fake-ib",
         current_holdings={"AAA"},
         historical_close_loader=loader,
@@ -364,6 +369,10 @@ def test_market_history_runtime_uses_canonical_market_history_key(monkeypatch):
     assert captured["market_data"]["market_history"] is loader
     assert captured["portfolio"] is portfolio_snapshot
     assert "historical_close_loader" not in captured["market_data"]
+    assert captured["runtime_config"]["signal_effective_after_trading_days"] == 1
+    assert result.metadata["signal_date"] == "2026-04-01"
+    assert result.metadata["effective_date"] == "2026-04-02"
+    assert result.metadata["execution_timing_contract"] == "next_trading_day"
 
 
 def test_feature_snapshot_runtime_fail_closes_on_entrypoint_exception(monkeypatch):
@@ -452,7 +461,11 @@ def test_value_target_runtime_builds_semiconductor_inputs(monkeypatch):
 
     runtime = strategy_runtime_module.LoadedStrategyRuntime(
         entrypoint=FakeEntrypoint(),
-        runtime_adapter=StrategyRuntimeAdapter(status_icon="🚀", portfolio_input_name="portfolio_snapshot"),
+        runtime_adapter=StrategyRuntimeAdapter(
+            status_icon="🚀",
+            portfolio_input_name="portfolio_snapshot",
+            runtime_policy=StrategyRuntimePolicy(signal_effective_after_trading_days=1),
+        ),
         runtime_settings=_build_runtime_settings(profile="soxl_soxx_trend_income"),
         runtime_config={},
         merged_runtime_config={"managed_symbols": ("SOXL", "SOXX", "QQQI", "SPYI", "BOXX")},
@@ -484,8 +497,12 @@ def test_value_target_runtime_builds_semiconductor_inputs(monkeypatch):
     assert captured["market_data"]["derived_indicators"]["soxx"]["price"] == 200.0
     assert captured["portfolio"] is portfolio_snapshot
     assert "pacing_sec" not in captured["runtime_config"]
+    assert captured["runtime_config"]["signal_effective_after_trading_days"] == 1
     assert result.metadata["portfolio_total_equity"] == 50000.0
     assert result.metadata["managed_symbols"] == ("SOXL", "SOXX", "QQQI", "SPYI", "BOXX")
+    assert result.metadata["signal_date"] == "2026-04-01"
+    assert result.metadata["effective_date"] == "2026-04-02"
+    assert result.metadata["execution_timing_contract"] == "next_trading_day"
 
 
 def test_value_target_runtime_builds_tqqq_inputs(monkeypatch):
@@ -517,7 +534,11 @@ def test_value_target_runtime_builds_tqqq_inputs(monkeypatch):
 
     runtime = strategy_runtime_module.LoadedStrategyRuntime(
         entrypoint=FakeEntrypoint(),
-        runtime_adapter=StrategyRuntimeAdapter(status_icon="🐤", portfolio_input_name="portfolio_snapshot"),
+        runtime_adapter=StrategyRuntimeAdapter(
+            status_icon="🐤",
+            portfolio_input_name="portfolio_snapshot",
+            runtime_policy=StrategyRuntimePolicy(signal_effective_after_trading_days=1),
+        ),
         runtime_settings=_build_runtime_settings(
             profile="tqqq_growth_income",
             display_name="TQQQ Growth Income",
@@ -558,6 +579,10 @@ def test_value_target_runtime_builds_tqqq_inputs(monkeypatch):
     assert captured["market_data"]["benchmark_history"][0]["high"] == 101.0
     assert captured["portfolio"] is portfolio_snapshot
     assert "pacing_sec" not in captured["runtime_config"]
+    assert captured["runtime_config"]["signal_effective_after_trading_days"] == 1
     assert result.metadata["portfolio_total_equity"] == 50000.0
     assert result.metadata["benchmark_symbol"] == "QQQ"
     assert result.metadata["managed_symbols"] == ("TQQQ", "QQQ", "BOXX", "SPYI", "QQQI")
+    assert result.metadata["signal_date"] == "2026-04-01"
+    assert result.metadata["effective_date"] == "2026-04-02"
+    assert result.metadata["execution_timing_contract"] == "next_trading_day"

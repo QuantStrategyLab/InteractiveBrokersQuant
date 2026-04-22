@@ -131,6 +131,48 @@ def _localize_notification_text(text: str, *, translator) -> str:
     return localized
 
 
+def _localize_timing_contract(contract: str, *, translator) -> str:
+    value = str(contract or "").strip()
+    if not value:
+        return ""
+    if value == "same_trading_day":
+        return "当日执行" if _translator_uses_zh(translator) else "same trading day"
+    if value == "next_trading_day":
+        return "次一交易日执行" if _translator_uses_zh(translator) else "next trading day"
+    match = re.fullmatch(r"next_(\d+)_trading_days", value)
+    if match:
+        count = int(match.group(1))
+        if _translator_uses_zh(translator):
+            return f"{count}个交易日后执行"
+        return f"next {count} trading days"
+    return _localize_notification_text(value, translator=translator)
+
+
+def _render_notification_context_text(
+    notification_context: Mapping[str, object] | None,
+    *,
+    translator,
+    fallback: str = "",
+) -> str:
+    if not isinstance(notification_context, Mapping):
+        return fallback
+    key = str(notification_context.get("code") or "").strip()
+    if not key:
+        return fallback
+    params = dict(notification_context.get("params") or {})
+    rendered = translator(key, **params)
+    return fallback if rendered == key else str(rendered)
+
+
+def _translate_snapshot_guard_decision(decision: object, *, translator) -> str:
+    value = str(decision or "").strip()
+    if not value:
+        return ""
+    key = f"snapshot_guard_decision_{value}"
+    translated = translator(key)
+    return value if translated == key else str(translated)
+
+
 def _split_detail_segment(text: str) -> list[str]:
     value = str(text or "").strip()
     if not value:
@@ -328,12 +370,13 @@ def _build_timing_audit_lines(signal_metadata, *, translator) -> list[str]:
     if not signal_date and not effective_date and not contract:
         return []
     label = "⏱ 执行时点" if _translator_uses_zh(translator) else "⏱ Timing"
+    localized_contract = _localize_timing_contract(contract, translator=translator)
     if signal_date and effective_date:
         value = f"{signal_date} -> {effective_date}"
     else:
-        value = signal_date or effective_date or contract
-    if contract and contract not in value:
-        value = f"{value} ({contract})" if value else contract
+        value = signal_date or effective_date or localized_contract
+    if localized_contract and localized_contract not in value:
+        value = f"{value} ({localized_contract})" if value else localized_contract
     return [f"{label}: {value}"]
 
 
@@ -585,13 +628,37 @@ def run_strategy_core(
             decision = signal_metadata.get("snapshot_guard_decision")
             no_op_reason = signal_metadata.get("no_op_reason")
             fail_reason = signal_metadata.get("fail_reason")
-            no_op_text = config.translator("no_trades")
-            if decision:
-                no_op_text = f"{no_op_text} | {_localize_notification_text(f'decision={decision}', translator=config.translator)}"
-            if no_op_reason:
-                no_op_text = f"{no_op_text} | {_localize_notification_text(f'reason={no_op_reason}', translator=config.translator)}"
-            if fail_reason:
-                no_op_text = f"{no_op_text} | {_localize_notification_text(f'fail_reason={fail_reason}', translator=config.translator)}"
+            notification_context = signal_metadata.get("notification_context")
+            status_context = (
+                notification_context.get("status")
+                if isinstance(notification_context, Mapping)
+                else None
+            )
+            rendered_status = _render_notification_context_text(
+                status_context,
+                translator=config.translator,
+                fallback="",
+            )
+            no_op_segments = [config.translator("no_trades")]
+            if rendered_status:
+                no_op_segments.append(rendered_status)
+            else:
+                if decision:
+                    no_op_segments.append(
+                        config.translator(
+                            "snapshot_decision_detail",
+                            value=_translate_snapshot_guard_decision(decision, translator=config.translator),
+                        )
+                    )
+                if no_op_reason:
+                    no_op_segments.append(
+                        _localize_notification_text(f"reason={no_op_reason}", translator=config.translator)
+                    )
+                if fail_reason:
+                    no_op_segments.append(
+                        _localize_notification_text(f"fail_reason={fail_reason}", translator=config.translator)
+                    )
+            no_op_text = " | ".join(segment for segment in no_op_segments if str(segment).strip())
             no_op_text = "\n".join(_split_labeled_text(no_op_text))
             record = build_reconciliation_record(
                 strategy_profile=signal_metadata.get("strategy_profile"),
